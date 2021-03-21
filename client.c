@@ -7,56 +7,79 @@
 #include <netinet/in.h>
 #include <netdb.h> 
 #include <pthread.h>
+#include <signal.h>
 
 #define BUFFER_SIZE 256
+
+static volatile int keepRunning = 1;
+//detecting ctrl+c
+void intHandler(int dummy) {
+    printf("CTRL+C PRESSED\n");
+    exit(1);
+}
+
+
 
 //Get client input and send to server
 void *client_input(void *arg) {
     int n, sockfd  = *(int *) arg, flag;
     char buffer[BUFFER_SIZE], message[BUFFER_SIZE],command[8];
     
-    bzero(buffer, BUFFER_SIZE);
-    printf("Enter command: ");
-    fgets(buffer, BUFFER_SIZE, stdin);
+    signal(SIGINT, intHandler);//detect ctrl+c
 
-    flag = 0;
-    //////////////////////////////////////////////////////////
-    //Checking for SEND command
-    strncpy(command, buffer, 5); command[5]= '\0'; 
-    if(!strcmp(command,"SEND ")){
-        flag = 1;
-
-        strncpy(message, buffer + 5, 250);
+    while(1){
+        bzero(buffer, BUFFER_SIZE);
+        printf("Enter a command: \n");
         
-        if(strlen(message) <= 128){ 
-            /* write in the socket */
-            n = write(sockfd, message, strlen(buffer));
+        fgets(buffer, BUFFER_SIZE, stdin);
+
+        flag = 0;
+        //////////////////////////////////////////////////////////
+        //Checking for SEND command
+        strncpy(command, buffer, 5); command[5]= '\0'; 
+        if(!strcmp(command,"SEND ")){
+            flag = 1;
+
+            strncpy(message, buffer + 5, 250);
             
-            if (n < 0){
-                printf("ERROR writing to socket\n");
-                exit(1);
-            } 
+            if(strlen(message) <= 128){ 
+                /* write in the socket */
+                n = write(sockfd, message, strlen(buffer));
+                
+                if (n < 0){
+                    printf("ERROR writing to socket\n");
+                    exit(1);
+                } 
+            }
+            else{
+                printf("Your message is too long, please use at maximum 128 caracters.\n");
+            }
+
+        } 
+        //////////////////////////////////////////////////////////
+        //Checking for FOLLOW command
+        strncpy(command, buffer, 7); command[7]= '\0'; 
+        if(!strcmp(command,"FOLLOW ")){
+            flag = 1;
+            
+            //TODO
+         
         }
-        else{
-            printf("Your message is too long, please use at maximum 128 caracters.\n");
+        
+        //////////////////////////////////////////////////////////
+        if(!flag){
+            if(strlen(buffer)>0){
+                printf("Unkown command, try SEND <message> or FOLLOW <username>.\n");
+            }
+            else{//CNTRL+D
+                printf("END OF FILE\n");
+                exit(1);
+            }
         }
 
-    } 
-    //////////////////////////////////////////////////////////
-    //Checking for FOLLOW command
-    strncpy(command, buffer, 7); command[7]= '\0'; 
-    if(!strcmp(command,"FOLLOW ")){
-        flag = 1;
-        
-        //TODO
-       
-    }
-    //////////////////////////////////////////////////////////
-    if(!flag){
-        printf("Unkown command, try SEND <message> or FOLLOW <username>.\n");
-    }
+
     
-    
+    }
 
         
 }
@@ -68,14 +91,15 @@ void *client_display(void *arg) {
     char buffer[BUFFER_SIZE];
     bzero(buffer, BUFFER_SIZE);
     
-    /* read from the socket */
-    n = read(sockfd, buffer, BUFFER_SIZE);
-    while(n < 0){
+    while(1){
+        /* read from the socket */
         n = read(sockfd, buffer, BUFFER_SIZE);
-    } 
+        while(n < 0){
+            n = read(sockfd, buffer, BUFFER_SIZE);
+        } 
 
-    printf("%s\n",buffer);
- 
+        printf("%s\n",buffer);
+    }
 }
 
 
