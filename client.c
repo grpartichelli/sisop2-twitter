@@ -6,15 +6,59 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
+#include <pthread.h>
+
+#define BUFFER_SIZE 256
+
+//Get client input and send to server
+void *client_input(void *arg) {
+    int n, sockfd  = *(int *) arg;
+
+    char buffer[BUFFER_SIZE];
+    bzero(buffer, BUFFER_SIZE);
+
+
+    printf("Enter the message: ");
+    fgets(buffer, BUFFER_SIZE, stdin);
+    
+    /* write in the socket */
+    n = write(sockfd, buffer, strlen(buffer));
+    if (n < 0){
+        printf("ERROR writing to socket\n");
+        exit(1);
+    } 
+
+
+        
+}
+
+//Receive server response and display to user
+void *client_display(void *arg) {
+    int n, sockfd  = *(int *) arg;
+
+    char buffer[BUFFER_SIZE];
+    bzero(buffer, BUFFER_SIZE);
+    
+    /* read from the socket */
+    n = read(sockfd, buffer, BUFFER_SIZE);
+    while(n < 0){
+        n = read(sockfd, buffer, BUFFER_SIZE);
+    } 
+
+    printf("%s\n",buffer);
+ 
+}
+
+
 
 int main(int argc, char *argv[])
 {
-    
+    pthread_t thr_client_input, thr_client_display;
 
     int sockfd, n;
     struct sockaddr_in serv_addr;
     struct hostent *server;
-    char buffer[256];
+    
 
     char profile[20];
     int port;
@@ -43,9 +87,9 @@ int main(int argc, char *argv[])
     //TODO Check for correct PORT
     port = atoi(argv[3]);
     //////////////////////////////
-    
-    printf("Profile: %s , Port: %d\n",profile,port);
 
+    // OPENING AND CONNECTING TO SOCKET
+    printf("Profile: %s , Port: %d\n",profile,port);
 
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) 
@@ -61,24 +105,13 @@ int main(int argc, char *argv[])
         printf("ERROR connecting\n");
         exit(1);
     }
+    /////////////////////////////////////////////////////////
 
-    printf("Enter the message: ");
-    bzero(buffer, 256);
-    fgets(buffer, 256, stdin);
+    pthread_create(&thr_client_input, NULL, client_input, &sockfd);
+    pthread_create(&thr_client_display, NULL, client_display, &sockfd);
     
-	/* write in the socket */
-	n = write(sockfd, buffer, strlen(buffer));
-    if (n < 0) 
-		printf("ERROR writing to socket\n");
-
-    bzero(buffer,256);
-	
-	/* read from the socket */
-    n = read(sockfd, buffer, 256);
-    if (n < 0) 
-		printf("ERROR reading from socket\n");
-
-    printf("%s\n",buffer);
+    pthread_join(thr_client_input, NULL);    
+    pthread_join(thr_client_display, NULL);  
     
 	close(sockfd);
     return 0;
