@@ -11,12 +11,27 @@
 
 #define BUFFER_SIZE 256
 
-static volatile int keepRunning = 1;
-//detecting ctrl+c
-void intHandler(int dummy) {
-    printf("CTRL+C PRESSED\n");
+int sockfd;
+
+
+void quit_signal(){ //Não sei se devemos manter assim.
+    char buffer[256];
+    int n;
+    write(sockfd, "quit", 5);     
+    n = read(sockfd,buffer,BUFFER_SIZE);
+    while(n < 0){
+        n = read(sockfd, buffer, BUFFER_SIZE);
+    } 
+    printf("%s\n", buffer);
+    close(sockfd);
     exit(1);
 }
+
+//detecting ctrl+c
+void intHandler(int dummy) {
+    quit_signal();
+}
+
 
 
 
@@ -72,8 +87,7 @@ void *client_input(void *arg) {
                 printf("Unkown command, try SEND <message> or FOLLOW <username>.\n");
             }
             else{//CNTRL+D
-                printf("END OF FILE\n");
-                exit(1);
+                quit_signal();
             }
         }
 
@@ -108,7 +122,7 @@ int main(int argc, char *argv[])
 {
     pthread_t thr_client_input, thr_client_display;
 
-    int sockfd, n;
+    int  n;
     struct sockaddr_in serv_addr;
     struct hostent *server;
     

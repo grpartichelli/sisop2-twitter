@@ -15,27 +15,43 @@ void *handle_client(void *arg) {
    char buffer[256];
    int n, newsockfd = *(int *) arg;
 
-
-   while(1){
+   int flag = 1;
+   while(flag){
            
       //READ
       bzero(buffer,256);
+
       n = read( newsockfd,buffer,255 );
-      if (n < 0) {
-         printf("ERROR reading from socket");
-         exit(1);
+      while(n < 0){
+         n = read( newsockfd,buffer,255 );
       }
+
       printf("Here is the message: %s",buffer);
 
-      //WRITE
-      n = write(newsockfd,"I got your message",18); 
-      if (n < 0) {
-         printf("ERROR writing to socket");
-         exit(1);
+
+      
+      if(!strcmp(buffer,"quit")){ //User warning to quit
+         printf("\nUser quit\n");
+         write(newsockfd,"Successfully quit.",18); 
+         flag = 0;
+
+      } else{
+
+         //WRITE
+         n = write(newsockfd,"I got your message",18); 
+         if (n < 0) {
+            printf("ERROR writing to socket");
+            exit(1);
+         }
       }
+
+      
+
+      
+      ////////////////////////////////////////////
    }
 
-   close(newsockfd);
+   
 
 }
 
@@ -78,7 +94,7 @@ int main( int argc, char *argv[] ) {
 
    int i=0;
    while(1){
-      printf("%d",i);
+      
       //ACCEPT
       newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
       if (newsockfd < 0) {
