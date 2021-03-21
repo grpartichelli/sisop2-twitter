@@ -42,7 +42,7 @@ void *client_input(void *arg) {
 
             strncpy(message, buffer + 5, 250);
             
-            if(strlen(message) <= 128){ 
+            if(strlen(message) <= 129){ //Não contando \n 
                 /* write in the socket */
                 n = write(sockfd, message, strlen(buffer));
                 
