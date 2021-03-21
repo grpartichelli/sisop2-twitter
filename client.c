@@ -12,22 +12,51 @@
 
 //Get client input and send to server
 void *client_input(void *arg) {
-    int n, sockfd  = *(int *) arg;
-
-    char buffer[BUFFER_SIZE];
-    bzero(buffer, BUFFER_SIZE);
-
-
-    printf("Enter the message: ");
-    fgets(buffer, BUFFER_SIZE, stdin);
+    int n, sockfd  = *(int *) arg, flag;
+    char buffer[BUFFER_SIZE], message[BUFFER_SIZE],command[8];
     
-    /* write in the socket */
-    n = write(sockfd, buffer, strlen(buffer));
-    if (n < 0){
-        printf("ERROR writing to socket\n");
-        exit(1);
-    } 
+    bzero(buffer, BUFFER_SIZE);
+    printf("Enter command: ");
+    fgets(buffer, BUFFER_SIZE, stdin);
 
+    flag = 0;
+    //////////////////////////////////////////////////////////
+    //Checking for SEND command
+    strncpy(command, buffer, 5); command[5]= '\0'; 
+    if(!strcmp(command,"SEND ")){
+        flag = 1;
+
+        strncpy(message, buffer + 5, 250);
+        
+        if(strlen(message) <= 128){ 
+            /* write in the socket */
+            n = write(sockfd, message, strlen(buffer));
+            
+            if (n < 0){
+                printf("ERROR writing to socket\n");
+                exit(1);
+            } 
+        }
+        else{
+            printf("Your message is too long, please use at maximum 128 caracters.\n");
+        }
+
+    } 
+    //////////////////////////////////////////////////////////
+    //Checking for FOLLOW command
+    strncpy(command, buffer, 7); command[7]= '\0'; 
+    if(!strcmp(command,"FOLLOW ")){
+        flag = 1;
+        
+        //TODO
+       
+    }
+    //////////////////////////////////////////////////////////
+    if(!flag){
+        printf("Unkown command, try SEND <message> or FOLLOW <username>.\n");
+    }
+    
+    
 
         
 }
@@ -112,7 +141,7 @@ int main(int argc, char *argv[])
     
     pthread_join(thr_client_input, NULL);    
     pthread_join(thr_client_display, NULL);  
-    
+
 	close(sockfd);
     return 0;
 }
