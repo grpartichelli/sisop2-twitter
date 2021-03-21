@@ -1,7 +1,7 @@
-all: app_client server
+all: app_cliente server
 
-app_client: client.o
-	gcc -pthread -o app_client client.o 
+app_cliente: client.o
+	gcc -pthread -o app_cliente client.o 
 
 client.o: client.c
 	gcc -c client.c
