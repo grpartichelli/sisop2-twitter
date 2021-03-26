@@ -6,42 +6,46 @@ void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pa
 	packet message;
 	message.type = type;
 	message.sqn = sqn;
-	message.len = strlen(payload);
+	message.len = len;
 	message.timestamp = timestamp;
 
-	printf("Enviado %i, %i, %i, %i, %s", message.type, message.sqn, message.len, message.timestamp, payload);
+	if(DEBUG)
+		printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
 
 	write(sockfd,&message,8);
-	if (type)
-		write(sockfd,payload,strlen(payload));
+	write(sockfd,payload,strlen(payload));
 }
 
 void receive_and_print(int sockfd)
 {
 	packet message;
-	char* text;
 
-	receive(sockfd,&message,text);
+	receive(sockfd,&message);
 
-	if(message.len)
-		printf("%s", text);
+	if(message.payload!=NULL && message.len!=0)
+	{
+		printf("%s\n", message.payload);
+		free(message.payload);
+	}
 }
 
-void receive(int sockfd, packet* message, char* text)
+void receive(int sockfd, packet* message)
 {
-	printf("oi");
 
 	while(read(sockfd,message,8) < 0)
     	;
 
-    if(message->len)
+    if(message->len!=0)
     {
-    	text = (char*) malloc((message->len)*sizeof(char));
-    	read(sockfd,text,message->len);
-    	text[message->len-1]='\0';
+    	message->payload = (char*) malloc((message->len)*sizeof(char));
+    	read(sockfd,message->payload,message->len);
+    	message->payload[message->len-1]='\0';
 	}
+	else
+		message->payload=NULL;
 
-	printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, text);
+	if(DEBUG)
+		printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, message->payload);
 
 }
 

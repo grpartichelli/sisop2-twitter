@@ -16,6 +16,8 @@
 #define MAX_CLIENTS 500
 #define MAX_NOTIFS 500
 
+int sqncnt = 0;
+
 // Gerenciador de comunicação: OK?
 // Gerenciador de notificações: TO-DO
 // Gerenciador de perfis e sessões: TO-DO
@@ -44,23 +46,22 @@ void *handle_client(void *arg) {
    int flag = 1;
 
    packet message;
-   char* text;
 
    while(flag){
            
       //READ
-      receive(newsockfd, &message, text);
+      receive(newsockfd, &message);
 
       switch(message.type)
       {
          case CMD_QUIT:
-         // TO-DO: QUIT command. profile.online--, close the socket, send a packet (SRV_MESSAGE,) 
+         // TO-DO: QUIT command. profile.online--, send a packet (SRV_MSG), close the socket. 
+            send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
             close(newsockfd);
             flag = 0;
          break;
 
          case CMD_SEND:
-         //puts(text);
          // TO-DO: SEND command.
          /* a “produção” de uma notificação envolverá 
             (1) receber a notificação do processo cliente, 
@@ -69,14 +70,13 @@ void *handle_client(void *arg) {
          break;
 
          case CMD_FOLLOW:
-         // TO-DO: FOLLOW command. verify whether the @ exists, if it doesn't send an error message to the client
+         // TO-DO: FOLLOW command. verify whether the @ exists, if it doesn't send an error message to the client (SRV_MSG)
          // if it does, add the current user to the @'s list of followers and send the client an empty message (len=0).
 
          break;
       }
 
-      //if(text)
-         //free(text);
+      free(message.payload);
    }
 
 }
@@ -129,8 +129,6 @@ int main( int argc, char *argv[] ) {
          printf("Failed to create thread");
          exit(1);
       }
-      else
-         printf("the thread should exist");
       
       i++;
    }

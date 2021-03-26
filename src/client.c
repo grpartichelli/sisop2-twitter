@@ -70,7 +70,10 @@ void *client_input(void *arg)
                     printf("Your message is too long, please use at maximum 128 caracters.\n");
                 break;
             case CMD_FOLLOW:
-                send_packet(sockfd, CMD_FOLLOW, 0, strlen(in_buffer)-7, getTime(), in_buffer+7*sizeof(char));
+                if(in_buffer[7]=='@')
+                    send_packet(sockfd, CMD_FOLLOW, 0, strlen(in_buffer)-8, getTime(), in_buffer+8*sizeof(char));
+                else
+                    printf("An @ should be included before the username.\n");
                 // Waits for a message from the server - if it 
                 //receive_and_print(sockfd);
                 break;
@@ -90,7 +93,7 @@ int get_command(char* buffer)
    
     //////////////////////////////////////////////////////////
     // Checking for FOLLOW command 
-    if(!strncmp(buffer,"FOLLOW @", 8))
+    if(!strncmp(buffer,"FOLLOW ", 7))
         return CMD_FOLLOW;
 
     // If the command is neither SEND nor FOLLOW, returns -1
