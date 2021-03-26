@@ -1,57 +1,83 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
 
+#include "utils.c"
+
 #define PORT 4000
 #define MAX_CLIENTS 500
+#define MAX_NOTIFS 500
 
+// Gerenciador de comunicação: OK?
+// Gerenciador de notificações: TO-DO
+// Gerenciador de perfis e sessões: TO-DO
+
+typedef struct notification{
+ uint32_t id;           // Notification identifier (int, unique)
+ uint32_t timestamp;    // Timestamp
+ const char* msg;       // Message
+ uint16_t len;          // Message length
+ uint16_t pending;      // Number of pending readers
+ } notification;
+
+typedef struct profile{
+ char* id;              // Profile identifier (@(...))
+ int online;            // Number of sessions open with this specific user
+ char** followers;      // List of followers
+ notification* rcv_notifs[MAX_NOTIFS]; // List of received notifs
+ notification* pnd_notifs[MAX_NOTIFS]; // List of pending notifs
+ } profile;
 
 void *handle_client(void *arg) {
-   char buffer[256];
-   int n, newsockfd = *(int *) arg;
 
+   // TO-DO: Login code. profile.online++.
+
+   int newsockfd = *(int *) arg;
    int flag = 1;
+
+   packet message;
+   char* text;
+
    while(flag){
            
       //READ
-      bzero(buffer,256);
+      receive(newsockfd, &message, text);
 
-      n = read( newsockfd,buffer,255 );
-      while(n < 0){
-         n = read( newsockfd,buffer,255 );
+      switch(message.type)
+      {
+         case CMD_QUIT:
+         // TO-DO: QUIT command. profile.online--, close the socket, send a packet (SRV_MESSAGE,) 
+            close(newsockfd);
+            flag = 0;
+         break;
+
+         case CMD_SEND:
+         //puts(text);
+         // TO-DO: SEND command.
+         /* a “produção” de uma notificação envolverá 
+            (1) receber a notificação do processo cliente, 
+            (2) escrever a notificação na lista de notificações pendentes de envio e 
+            (3) para cada seguidor, atualizar a fila de notificações pendentes de recebimento */
+         break;
+
+         case CMD_FOLLOW:
+         // TO-DO: FOLLOW command. verify whether the @ exists, if it doesn't send an error message to the client
+         // if it does, add the current user to the @'s list of followers and send the client an empty message (len=0).
+
+         break;
       }
 
-      printf("Here is the message: %s",buffer);
-
-
-      
-      if(!strcmp(buffer,"quit")){ //User warning to quit
-         printf("\nUser quit\n");
-         write(newsockfd,"Successfully quit.",18); 
-         flag = 0;
-
-      } else{
-
-         //WRITE
-         n = write(newsockfd,"I got your message",18); 
-         if (n < 0) {
-            printf("ERROR writing to socket");
-            exit(1);
-         }
-      }
-
-      
-
-      
-      ////////////////////////////////////////////
+      //if(text)
+         //free(text);
    }
-
-   
 
 }
 
@@ -72,13 +98,10 @@ int main( int argc, char *argv[] ) {
    
    //Initializing structure
    bzero((char *) &serv_addr, sizeof(serv_addr));
-
    
    serv_addr.sin_family = AF_INET;
    serv_addr.sin_addr.s_addr = INADDR_ANY;
    serv_addr.sin_port = htons(PORT);
-   
-
 
    // BIND TO HOST
    if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
@@ -102,17 +125,15 @@ int main( int argc, char *argv[] ) {
          exit(1);
       }
 
-
       if(pthread_create(&client_pthread[i], NULL, handle_client, &newsockfd) != 0 ){
          printf("Failed to create thread");
          exit(1);
       }
-
+      else
+         printf("the thread should exist");
       
       i++;
    }
-   
-
 	  
    close(sockfd);
    printf("Server ended successfully\n");
