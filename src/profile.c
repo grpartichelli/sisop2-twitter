@@ -38,6 +38,7 @@ int get_profile_id(profile* profile_list, char *username){
 
 	for(int i =0; i<MAX_CLIENTS; i++){
 		if(profile_list[i].name != ""){
+			printf("%s\n", profile_list[i].name);
 			if(strcmp(profile_list[i].name,username)== 0){
 				return i;
 			}

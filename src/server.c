@@ -46,6 +46,7 @@ int handle_profile(char *username){
       }
    } 
    else{
+      printf("GOT HERE");
       if(user_list[profile_id].online > 1){
          //TODO
          printf("ESSE USUARIO NÃO É PERMITIDO\n");
@@ -100,9 +101,9 @@ void *handle_client(void *arg) {
          break;
 
          case INIT_USER:
-            printf("%s\n", message.payload);
-            profile_id = handle_profile(message.payload);
             print_profiles(user_list);
+            profile_id = handle_profile(message.payload);
+            
 
          break;
       }
