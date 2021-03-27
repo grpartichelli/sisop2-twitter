@@ -102,7 +102,7 @@ void *handle_client(void *arg) {
          break;
 
          case INIT_USER:
-            printf("%s", message.payload);
+            printf("%s\n", message.payload);
             profile_id = handle_profile(message.payload);
             print_profiles(user_list);
 
