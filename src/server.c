@@ -32,6 +32,35 @@ void intHandler(int dummy) {
 
 
 
+int handle_profile(char *username){
+
+   int profile_id = get_profile_id(user_list,username);
+
+   if(profile_id == -1){
+      profile new_profile;
+      new_profile.name = username;
+      new_profile.online = 1;
+      profile_id = insert_profile(user_list, new_profile);
+
+      if(profile_id == -1){
+         printf("MAX NUMBER OF PROFILES REACHED\n");
+         exit(1);
+      }
+   } 
+   else{
+      if(user_list[profile_id].online > 1){
+         //TODO
+         printf("ESSE USUARIO NÃO É PERMITIDO\n");
+      }
+      else{
+         user_list[profile_id].online +=1;
+      }
+   }
+
+   return profile_id;
+
+}
+
 void *handle_client(void *arg) {
 
    // TO-DO: Login code. profile.online++.
@@ -39,7 +68,9 @@ void *handle_client(void *arg) {
    int newsockfd = *(int *) arg;
    int flag = 1;
    packet message;
-   profile new_profile;
+
+
+   int profile_id;
 
    signal(SIGINT, intHandler); //detect ctrl+c
    while(flag){
@@ -71,9 +102,10 @@ void *handle_client(void *arg) {
          break;
 
          case INIT_USER:
-            new_profile.name =  message.payload;
-            printf("%s\n",new_profile.name);
-            
+            printf("%s", message.payload);
+            profile_id = handle_profile(message.payload);
+            print_profiles(user_list);
+
          break;
       }
 
@@ -90,10 +122,7 @@ int main( int argc, char *argv[] ) {
    struct sockaddr_in serv_addr, cli_addr;
    
    init_profiles(user_list);
-   print_profiles(user_list);
-   user_list[20].name = "love";
-   printf("%d",get_profile_id(user_list,"love"));
-
+   
 
    //Create socket
    sockfd = socket(AF_INET, SOCK_STREAM, 0);

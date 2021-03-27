@@ -139,6 +139,7 @@ void validate_user(char *profile){
 
 void load_user(char *profile){
     //Send profile that connected to server
+    printf("%s", profile);
     send_packet(sockfd, INIT_USER, ++sqncnt, strlen(profile), getTime(), profile);
    
 }

@@ -3,7 +3,7 @@
 
 
 #include "notification.h"
-#define MAX_CLIENTS 500
+#define MAX_CLIENTS 750
 
 
 typedef struct profile{

@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <stdint.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 #define CMD_QUIT 0
 #define CMD_SEND 1
