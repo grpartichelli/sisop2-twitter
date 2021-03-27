@@ -1,28 +1,35 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <string.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h> 
 #include <pthread.h>
+#include <netdb.h> 
 #include <signal.h>
 
-#define BUFFER_SIZE 256
+#include "utils.c"
+
+void quit_signal();
+void intHandler(int dummy);
+void *client_input(void *arg);
+int get_command(char* buffer);
+void *client_display(void *arg);
 
 int sockfd;
+int sqncnt = 0;
 
+// Gerenciador de comunicação: OK?
+// Gerenciador de notificações: TO-DO
+// Gerenciador de interface: ???
 
 void quit_signal(){ //Não sei se devemos manter assim.
-    char buffer[256];
-    int n;
-    write(sockfd, "quit", 5);     
-    n = read(sockfd,buffer,BUFFER_SIZE);
-    while(n < 0){
-        n = read(sockfd, buffer, BUFFER_SIZE);
-    } 
-    printf("%s\n", buffer);
+    send_packet(sockfd,CMD_QUIT,++sqncnt,0,0,"");
+    receive_and_print(sockfd);
     close(sockfd);
     exit(1);
 }
@@ -32,70 +39,66 @@ void intHandler(int dummy) {
     quit_signal();
 }
 
-
-
-
 //Get client input and send to server
-void *client_input(void *arg) {
-    int n, sockfd  = *(int *) arg, flag;
-    char buffer[BUFFER_SIZE], message[BUFFER_SIZE],command[8];
-    
-    signal(SIGINT, intHandler);//detect ctrl+c
+void *client_input(void *arg) 
+{
+    int n, sockfd  = *(int *) arg, flag, command;
+    char in_buffer[BUFFER_SIZE];
 
-    while(1){
-        bzero(buffer, BUFFER_SIZE);
+    signal(SIGINT, intHandler); //detect ctrl+c
+
+    while(1)
+    {
+        bzero(in_buffer, BUFFER_SIZE);
         printf("Enter a command: \n");
         
-        fgets(buffer, BUFFER_SIZE, stdin);
+        if (!fgets(in_buffer, BUFFER_SIZE, stdin))
+            command = CMD_QUIT;
+        else
+            command = get_command(in_buffer);
 
-        flag = 0;
-        //////////////////////////////////////////////////////////
-        //Checking for SEND command
-        strncpy(command, buffer, 5); command[5]= '\0'; 
-        if(!strcmp(command,"SEND ")){
-            flag = 1;
-
-            strncpy(message, buffer + 5, 250);
-            
-            if(strlen(message) <= 129){ //Não contando \n 
-                /* write in the socket */
-                n = write(sockfd, message, strlen(buffer));
-                
-                if (n < 0){
-                    printf("ERROR writing to socket\n");
-                    exit(1);
-                } 
-            }
-            else{
-                printf("Your message is too long, please use at maximum 128 caracters.\n");
-            }
-
-        } 
-        //////////////////////////////////////////////////////////
-        //Checking for FOLLOW command
-        strncpy(command, buffer, 7); command[7]= '\0'; 
-        if(!strcmp(command,"FOLLOW ")){
-            flag = 1;
-            
-            //TODO
-         
-        }
-        
-        //////////////////////////////////////////////////////////
-        if(!flag){
-            if(strlen(buffer)>0){
-                printf("Unkown command, try SEND <message> or FOLLOW <username>.\n");
-            }
-            else{//CNTRL+D
+        switch(command){
+            case CMD_QUIT:
                 quit_signal();
-            }
+                exit(1);
+                break;
+            case CMD_SEND:
+                // If the message is at max 128 characters long, includes "SEND " and \n
+                if (strlen(in_buffer) <= 134) 
+                    send_packet(sockfd, CMD_SEND, 0, strlen(in_buffer)-5, getTime(), in_buffer+5*sizeof(char));
+                else
+                    printf("Your message is too long, please use at maximum 128 caracters.\n");
+                break;
+            case CMD_FOLLOW:
+                if(in_buffer[7]=='@')
+                    send_packet(sockfd, CMD_FOLLOW, 0, strlen(in_buffer)-8, getTime(), in_buffer+8*sizeof(char));
+                else
+                    printf("An @ should be included before the username.\n");
+                // Waits for a message from the server - if it 
+                //receive_and_print(sockfd);
+                break;
+            default:
+                printf("Unknown command, try SEND <message> or FOLLOW <username>. To quit, use CTRL+C/D.\n");
         }
-
-
-    
     }
-
         
+}
+
+int get_command(char* buffer)
+{
+    //////////////////////////////////////////////////////////
+    // Checking for SEND command
+    if(!strncmp(buffer,"SEND ", 5))
+        return CMD_SEND;
+   
+    //////////////////////////////////////////////////////////
+    // Checking for FOLLOW command 
+    if(!strncmp(buffer,"FOLLOW ", 7))
+        return CMD_FOLLOW;
+
+    // If the command is neither SEND nor FOLLOW, returns -1
+    return -1; 
+
 }
 
 //Receive server response and display to user
@@ -110,7 +113,7 @@ void *client_display(void *arg) {
         n = read(sockfd, buffer, BUFFER_SIZE);
         while(n < 0){
             n = read(sockfd, buffer, BUFFER_SIZE);
-        } 
+        }
 
         printf("%s\n",buffer);
     }
@@ -126,7 +129,6 @@ int main(int argc, char *argv[])
     struct sockaddr_in serv_addr;
     struct hostent *server;
     
-
     char profile[20];
     int port;
 
@@ -140,7 +142,6 @@ int main(int argc, char *argv[])
     //TODO Check for correct USER
     strcpy(profile,argv[1]);
     //////////////////////////////
-
 
     //Check for correct HOST
     server = gethostbyname(argv[2]);
@@ -158,7 +159,6 @@ int main(int argc, char *argv[])
     // OPENING AND CONNECTING TO SOCKET
     printf("Profile: %s , Port: %d\n",profile,port);
 
-
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) 
         printf("ERROR opening socket\n");
     
@@ -166,7 +166,6 @@ int main(int argc, char *argv[])
 	serv_addr.sin_port = htons(port);    
 	serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
 	bzero(&(serv_addr.sin_zero), 8);     
-	
     
 	if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) {
         printf("ERROR connecting\n");
