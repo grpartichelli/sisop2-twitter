@@ -13,7 +13,7 @@
 
 #include "utils.c"
 
-#define PORT 4050
+#define PORT 4000
 #define MAX_CLIENTS 500
 #define MAX_NOTIFS 500
 

@@ -123,6 +123,18 @@ void *client_display(void *arg) {
     }
 }
 
+void load_user(char *profile){
+
+    if(!(strlen(profile) <=20 && strlen(profile) >=4)){
+        fprintf(stderr,"The username must be between 4 and 20 characters long.\n");
+        exit(1);
+    }
+
+    if(profile[0] != '@'){
+        fprintf(stderr,"The username must start with @ \n");
+        exit(1);
+    }
+}
 
 
 int main(int argc, char *argv[])
@@ -145,6 +157,9 @@ int main(int argc, char *argv[])
 	////////////////////////////////
     //TODO Check for correct USER
     strcpy(profile,argv[1]);
+
+    load_user(profile);
+
     //////////////////////////////
 
     //Check for correct HOST
