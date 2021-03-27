@@ -12,11 +12,12 @@
 #include <signal.h>
 
 #include "utils.c"
-#include "../include/server_structures.h"
+#include "profile.c"
+#include "notification.c"
 
 #define PORT 4000
 #define MAX_CLIENTS 500
-#define MAX_NOTIFS 500
+
 
 int sqncnt = 0;
 int sockfd;
@@ -69,6 +70,7 @@ void *handle_client(void *arg) {
          break;
 
          case INIT_USER:
+
          
 
          break;

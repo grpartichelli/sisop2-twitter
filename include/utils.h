@@ -1,3 +1,6 @@
+#ifndef UTILS_H
+#define UTILS_H
+
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,3 +35,5 @@ void receive_and_print(int sockfd);
 void receive(int sockfd, packet* message);
 
 int getTime();
+
+#endif
