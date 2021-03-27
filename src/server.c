@@ -118,7 +118,8 @@ void *handle_client(void *arg) {
 int main( int argc, char *argv[] ) {
 
    pthread_t client_pthread[MAX_CLIENTS];
-   int newsockfd, portno, clilen, yes;
+   int newsockfd, portno, clilen;
+   int yes =1;
    struct sockaddr_in serv_addr, cli_addr;
    
    init_profiles(user_list);
