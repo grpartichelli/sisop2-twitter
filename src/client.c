@@ -74,7 +74,7 @@ void *client_input(void *arg)
                     if(strlen(in_buffer)-8 <=20 && strlen(in_buffer)-8 >=4)
                         send_packet(sockfd, CMD_FOLLOW, 0, strlen(in_buffer)-8, getTime(), in_buffer+8*sizeof(char));
                     else
-                        printf("The username must be between 4 and 20 characters long.\n")
+                        printf("The username must be between 4 and 20 characters long.\n");
                 }
                 else
                     printf("An @ should be included before the username.\n");
