@@ -1,5 +1,5 @@
 #include "../include/utils.h"
-#include <string.h>
+
 
 void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* payload)
 {
@@ -8,6 +8,8 @@ void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pa
 	message.sqn = sqn;
 	message.len = len;
 	message.timestamp = timestamp;
+
+	
 
 	if(DEBUG)
 		printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
@@ -54,4 +56,11 @@ int getTime()
 	// TO-DO: convert sth from the "time.h" library into a timestamp
 
 	return 0;
+}
+
+char* convertTime(uint16_t time){
+
+	//TO-DO: convert from uint16 time to string
+	char * nothing;
+	return nothing;
 }

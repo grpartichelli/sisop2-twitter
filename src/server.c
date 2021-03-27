@@ -9,14 +9,25 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include "utils.c"
 
-#define PORT 4000
+#define PORT 4050
 #define MAX_CLIENTS 500
 #define MAX_NOTIFS 500
 
 int sqncnt = 0;
+int sockfd;
+
+
+//detecting ctrl+c
+void intHandler(int dummy) {
+   close(sockfd);   
+   printf("\nServer ended successfully\n");
+   exit(0);
+}
+
 
 // Gerenciador de comunicação: OK?
 // Gerenciador de notificações: TO-DO
@@ -46,9 +57,9 @@ void *handle_client(void *arg) {
    int flag = 1;
 
    packet message;
-
+   signal(SIGINT, intHandler); //detect ctrl+c
    while(flag){
-           
+      
       //READ
       receive(newsockfd, &message);
 
@@ -85,7 +96,7 @@ void *handle_client(void *arg) {
 int main( int argc, char *argv[] ) {
 
    pthread_t client_pthread[MAX_CLIENTS];
-   int sockfd, newsockfd, portno, clilen;
+   int newsockfd, portno, clilen;
    struct sockaddr_in serv_addr, cli_addr;
    
    //Create socket
@@ -117,7 +128,7 @@ int main( int argc, char *argv[] ) {
 
    int i=0;
    while(1){
-      
+      signal(SIGINT, intHandler); //detect ctrl+c
       //ACCEPT
       newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
       if (newsockfd < 0) {
