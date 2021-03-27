@@ -21,7 +21,7 @@
 
 int sqncnt = 0;
 int sockfd;
-profile user_list[MAX_CLIENTS];
+profile profile_list[MAX_CLIENTS];
 
 //detecting ctrl+c
 void intHandler(int dummy) {
@@ -34,11 +34,11 @@ void intHandler(int dummy) {
 
 int handle_profile(char *username){
 
-   int profile_id = get_profile_id(user_list,username);
+   int profile_id = get_profile_id(profile_list,username);
 
    if(profile_id == -1){
       
-      profile_id = insert_profile(user_list, username, 1);
+      profile_id = insert_profile(profile_list, username, 1);
 
       if(profile_id == -1){
          printf("MAX NUMBER OF PROFILES REACHED\n");
@@ -46,12 +46,13 @@ int handle_profile(char *username){
       }
    } 
    else{
-      if(user_list[profile_id].online > 1){
+      if(profile_list[profile_id].online > 1){
          //TODO
          printf("ESSE USUARIO NÃO É PERMITIDO\n");
       }
       else{
-         user_list[profile_id].online +=1;
+      
+         profile_list[profile_id].online +=1;
       }
    }
 
@@ -81,6 +82,7 @@ void *handle_client(void *arg) {
          case CMD_QUIT:
          // TO-DO: QUIT command. profile.online--, send a packet (SRV_MSG), close the socket. 
             send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
+            profile_list[profile_id].online -=1;
             close(newsockfd);
             flag = 0;
          break;
@@ -101,13 +103,15 @@ void *handle_client(void *arg) {
 
          case INIT_USER:
             
+
             profile_id = handle_profile(message.payload);
-            print_profiles(user_list);
+
+            
             
 
          break;
       }
-
+      
       free(message.payload);
    }
 
@@ -121,7 +125,7 @@ int main( int argc, char *argv[] ) {
    int yes =1;
    struct sockaddr_in serv_addr, cli_addr;
    
-   init_profiles(user_list);
+   init_profiles(profile_list);
    
 
    //Create socket
