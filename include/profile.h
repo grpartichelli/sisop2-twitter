@@ -7,7 +7,7 @@
 
 
 typedef struct profile{
- char* id;              // Profile identifier (@(...))
+ char* name;              // Profile identifier (@(...))
  int online;            // Number of sessions open with this specific user
  char** followers;      // List of followers
  notification* rcv_notifs[MAX_NOTIFS]; // List of received notifs

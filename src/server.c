@@ -71,8 +71,8 @@ void *handle_client(void *arg) {
          break;
 
          case INIT_USER:
-            new_profile.id =  message.payload;
-            printf("%s\n",new_profile.id);
+            new_profile.name =  message.payload;
+            printf("%s\n",new_profile.name);
             
          break;
       }
@@ -91,6 +91,8 @@ int main( int argc, char *argv[] ) {
    
    init_profiles(user_list);
    print_profiles(user_list);
+   user_list[20].name = "love";
+   printf("%d",get_profile_id(user_list,"love"));
 
 
    //Create socket
