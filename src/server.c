@@ -37,10 +37,8 @@ int handle_profile(char *username){
    int profile_id = get_profile_id(user_list,username);
 
    if(profile_id == -1){
-      profile new_profile;
-      new_profile.name = username;
-      new_profile.online = 1;
-      profile_id = insert_profile(user_list, new_profile);
+      
+      profile_id = insert_profile(user_list, username, 1);
 
       if(profile_id == -1){
          printf("MAX NUMBER OF PROFILES REACHED\n");

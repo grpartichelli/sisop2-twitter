@@ -19,16 +19,18 @@ void print_profiles(profile* profile_list){
 	}
 }
 
-int insert_profile(profile* profile_list, profile p){
+int insert_profile(profile* profile_list, char* username, int online){
 
-	for(int i =0; i<MAX_CLIENTS; i++){
-		if(profile_list[i].name == ""){
-			profile_list[i] = p;
-			return i;
-		}
-	}
+    for(int i =0; i<MAX_CLIENTS; i++){
+        if(profile_list[i].name == ""){
+        	profile_list[i].name = (char*)malloc(strlen(username)+1);
+            strcpy(profile_list[i].name,username);
+            profile_list[i].online = online;
+            return i;
+        }
+    }
 
-	return -1;
+    return -1;
 }
 
 
