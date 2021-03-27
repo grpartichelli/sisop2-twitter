@@ -16,7 +16,7 @@
 #include "notification.c"
 
 #define PORT 4000
-#define MAX_CLIENTS 500
+
 
 
 int sqncnt = 0;
@@ -38,8 +38,9 @@ void *handle_client(void *arg) {
 
    int newsockfd = *(int *) arg;
    int flag = 1;
-
    packet message;
+   profile new_profile;
+
    signal(SIGINT, intHandler); //detect ctrl+c
    while(flag){
       
@@ -70,9 +71,9 @@ void *handle_client(void *arg) {
          break;
 
          case INIT_USER:
-
-         
-
+            new_profile.id =  message.payload;
+            printf("%s\n",new_profile.id);
+            
          break;
       }
 
@@ -88,6 +89,10 @@ int main( int argc, char *argv[] ) {
    int newsockfd, portno, clilen, yes;
    struct sockaddr_in serv_addr, cli_addr;
    
+   init_profiles(user_list);
+   print_profiles(user_list);
+
+
    //Create socket
    sockfd = socket(AF_INET, SOCK_STREAM, 0);
    

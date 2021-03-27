@@ -3,6 +3,8 @@
 
 
 #include "notification.h"
+#define MAX_CLIENTS 500
+
 
 typedef struct profile{
  char* id;              // Profile identifier (@(...))
