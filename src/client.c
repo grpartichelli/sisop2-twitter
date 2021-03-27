@@ -65,14 +65,14 @@ void *client_input(void *arg)
             case CMD_SEND:
                 // If the message is at max 128 characters long, includes "SEND " and \n
                 if (strlen(in_buffer) <= 134) 
-                    send_packet(sockfd, CMD_SEND, 0, strlen(in_buffer)-5, getTime(), in_buffer+5*sizeof(char));
+                    send_packet(sockfd, CMD_SEND, ++sqncnt, strlen(in_buffer)-5, getTime(), in_buffer+5*sizeof(char));
                 else
                     printf("Your message is too long, please use at maximum 128 caracters.\n");
                 break;
             case CMD_FOLLOW:
                 if(in_buffer[7]=='@'){
                     if(strlen(in_buffer)-8 <=20 && strlen(in_buffer)-8 >=4)
-                        send_packet(sockfd, CMD_FOLLOW, 0, strlen(in_buffer)-8, getTime(), in_buffer+8*sizeof(char));
+                        send_packet(sockfd, CMD_FOLLOW, ++sqncnt, strlen(in_buffer)-8, getTime(), in_buffer+8*sizeof(char));             
                     else
                         printf("The username must be between 4 and 20 characters long.\n");
                 }
@@ -123,7 +123,7 @@ void *client_display(void *arg) {
     }
 }
 
-void load_user(char *profile){
+void validate_user(char *profile){
 
     if(!(strlen(profile) <=20 && strlen(profile) >=4)){
         fprintf(stderr,"The username must be between 4 and 20 characters long.\n");
@@ -134,6 +134,13 @@ void load_user(char *profile){
         fprintf(stderr,"The username must start with @ \n");
         exit(1);
     }
+
+}
+
+void load_user(char *profile){
+    //Send profile that connected to server
+    send_packet(sockfd, INIT_USER, ++sqncnt, strlen(profile), getTime(), profile);
+   
 }
 
 
@@ -154,13 +161,7 @@ int main(int argc, char *argv[])
 		exit(1);
     }
 
-	////////////////////////////////
-    //TODO Check for correct USER
-    strcpy(profile,argv[1]);
-
-    load_user(profile);
-
-    //////////////////////////////
+	
 
     //Check for correct HOST
     server = gethostbyname(argv[2]);
@@ -174,6 +175,13 @@ int main(int argc, char *argv[])
     //TODO Check for correct PORT
     port = atoi(argv[3]);
     //////////////////////////////
+
+
+    //TODO Check for correct USER
+    strcpy(profile,argv[1]);
+    validate_user(profile);
+    //////////////////////////////
+
 
     // OPENING AND CONNECTING TO SOCKET
     printf("Profile: %s , Port: %d\n",profile,port);
@@ -190,7 +198,8 @@ int main(int argc, char *argv[])
         printf("ERROR connecting\n");
         exit(1);
     }
-    /////////////////////////////////////////////////////////
+    
+    load_user(profile);
 
     pthread_create(&thr_client_input, NULL, client_input, &sockfd);
     pthread_create(&thr_client_display, NULL, client_display, &sockfd);

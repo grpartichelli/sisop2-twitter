@@ -85,6 +85,11 @@ void *handle_client(void *arg) {
          // if it does, add the current user to the @'s list of followers and send the client an empty message (len=0).
 
          break;
+
+         case INIT_USER:
+         
+
+         break;
       }
 
       free(message.payload);

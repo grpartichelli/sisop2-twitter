@@ -12,6 +12,8 @@
 #define CMD_FOLLOW 2
 #define NOTIF 3
 #define SRV_MSG 4
+#define	INIT_USER 5 
+
 
 #define BUFFER_SIZE 256
 
