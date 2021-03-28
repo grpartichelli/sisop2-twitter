@@ -19,13 +19,14 @@ void print_profiles(profile* profile_list){
 	}
 }
 
-int insert_profile(profile* profile_list, char* username, int online){
+int insert_profile(profile* profile_list, char* username){
 
     for(int i =0; i<MAX_CLIENTS; i++){
         if(profile_list[i].name == ""){
         	profile_list[i].name = (char*)malloc(strlen(username)+1);
             strcpy(profile_list[i].name,username);
-            profile_list[i].online = online;
+            profile_list[i].online = 1;
+            profile_list[i].num_followers = 0;
             return i;
         }
     }
@@ -46,4 +47,15 @@ int get_profile_id(profile* profile_list, char *username){
 	}
 	return -1;
 
+}
+
+
+void print_profile_pointers(profile** profile_pointers){
+	profile p;
+	for(int i =0; i<MAX_FOLLOW; i++){
+		p = (*profile_pointers)[i];
+		if(p.name != ""){
+			printf("Profile: %s Online %d\n", p.name, p.online);
+		}
+	}
 }

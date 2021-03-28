@@ -70,8 +70,11 @@ void *client_input(void *arg)
                 else
                     printf("Your message is too long, please use at maximum 128 caracters.\n");
                 break;
+            
             case CMD_FOLLOW:
+           
                 if(in_buffer[7]=='@'){
+                    
                     if(strlen(in_buffer)-8 <=20 && strlen(in_buffer)-8 >=4)
                         send_packet(sockfd, CMD_FOLLOW, ++sqncnt, strlen(in_buffer)-7, getTime(), in_buffer+7*sizeof(char));             
                     else
@@ -79,9 +82,9 @@ void *client_input(void *arg)
                 }
                 else
                     printf("An @ should be included before the username.\n");
-                // Waits for a message from the server.
-                //receive_and_print(sockfd);
+           
                 break;
+
             default:
                 printf("Unknown command, try SEND <message> or FOLLOW <username>. To quit, use CTRL+C/D.\n");
             

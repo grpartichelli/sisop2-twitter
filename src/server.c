@@ -38,7 +38,7 @@ int handle_profile(char *username, int newsockfd){
 
    if(profile_id == -1){
       
-      profile_id = insert_profile(profile_list, username, 1);
+      profile_id = insert_profile(profile_list, username);
 
       if(profile_id == -1){
          printf("MAX NUMBER OF PROFILES REACHED\n");
@@ -61,6 +61,46 @@ int handle_profile(char *username, int newsockfd){
    return profile_id;
 
 }
+void handle_follow(char *follow_name, int profile_id, int newsockfd){
+
+   
+   char payload[100];
+   int follow_id;
+   int num_followers;
+
+
+   follow_id = get_profile_id(profile_list,follow_name);
+
+   if(follow_id == -1){ //User doesnt exist
+      strcpy(payload,"FOLLOW falhou, usuario nao encontrado.\n");
+      send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
+      return;
+   }
+
+   if(strcmp(follow_name,profile_list[profile_id].name) == 0 ){
+      strcpy(payload,"FOLLOW falhou, voce nao pode se seguir.\n");
+      send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
+      return;
+   }
+
+
+
+   num_followers =  profile_list[follow_id].num_followers;
+
+   if(num_followers >= MAX_FOLLOW){
+      printf("Account reached max number of followers\n");
+      exit(1);
+   }
+
+   profile_list[follow_id].num_followers++;
+
+   profile_list[follow_id].followers[num_followers] =  &profile_list[profile_id];
+
+   strcpy(payload,"FOLLOW executou com sucesso.\n");
+   send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload);  
+
+
+}
 
 void *handle_client(void *arg) {
 
@@ -72,9 +112,6 @@ void *handle_client(void *arg) {
    packet message;
 
    char follow_name[21];
-   char payload[40];
-   int follow_id;
-
 
    signal(SIGINT, intHandler); //detect ctrl+c
    while(flag){
@@ -103,32 +140,11 @@ void *handle_client(void *arg) {
 
          case CMD_FOLLOW:
             strcpy(follow_name,message.payload);
-            printf("FOLLOW NAME: %s\n",follow_name); 
-            follow_id = get_profile_id(profile_list,follow_name);
-
-            if(follow_id == -1){ //User doesnt exist
-               strcpy(payload,"FOLLOW falhou, usuario nao encontrado.\n");
-               send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-               
-            }
-            else{
-               strcpy(payload,"FOLLOW executou com sucesso.\n");
-               send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload);  
-            }
-
-         // TO-DO: FOLLOW command. verify whether the @ exists, if it doesn't send an error message to the client (SRV_MSG)
-         // if it does, add the current user to the @'s list of followers and send the client an empty message (len=0).
-
+            handle_follow(follow_name, profile_id, newsockfd);    
          break;
 
          case INIT_USER:
-            
-
             profile_id = handle_profile(message.payload,newsockfd);
-
-            
-            
-
          break;
       }
       
