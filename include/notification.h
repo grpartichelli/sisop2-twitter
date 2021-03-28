@@ -12,4 +12,12 @@ typedef struct notification{
  uint16_t pending;      // Number of pending readers
  } notification;
 
+
+typedef struct notif_identifier{
+
+int profile_id;  // Who sent the notification
+int notif_id;  //The id of the notification
+
+}notif_identifier;
+
  #endif

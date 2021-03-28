@@ -51,8 +51,7 @@ void *client_input(void *arg)
     {
         
         bzero(in_buffer, BUFFER_SIZE);
-        printf("Enter a command: \n");
-        
+          
         if (!fgets(in_buffer, BUFFER_SIZE, stdin))
             command = CMD_QUIT;
         else

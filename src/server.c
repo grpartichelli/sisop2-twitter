@@ -102,7 +102,53 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
 
 }
 
-void *handle_client(void *arg) {
+void handle_send(notification *notif, packet message, int profile_id, int newsockfd){
+
+   
+   profile *p;
+   int num_pnd_notifs;
+   int num_followers = profile_list[profile_id].num_followers;
+   int notif_id;
+   
+   //Update notif id
+   notif_id = profile_list[profile_id].num_snd_notifs;
+   profile_list[profile_id].num_snd_notifs++;
+
+   //Create notification
+   notif =  malloc(sizeof(notif));
+   notif->id = notif_id;
+   notif->timestamp = message.timestamp;
+   notif->msg = message.payload;
+   notif->len = message.len;
+   notif->pending= profile_list[profile_id].num_followers;
+
+
+
+   //Putting the notification on the current profile as send
+   profile_list[profile_id].snd_notifs[notif_id] = notif;
+
+   
+   //Putting the notification of followers pending list
+   for(int i=0; i< num_followers;i++){
+
+      p = profile_list[profile_id].followers[i];
+
+      num_pnd_notifs = p->num_pnd_notifs; 
+      p->num_pnd_notifs++;
+
+      p->pnd_notifs[num_pnd_notifs].notif_id= notif_id;
+      p->pnd_notifs[num_pnd_notifs].profile_id= profile_id;
+   
+   }
+
+
+
+   
+
+}
+  
+
+void *handle_client_messages(void *arg) {
 
    
 
@@ -112,6 +158,10 @@ void *handle_client(void *arg) {
    packet message;
 
    char follow_name[21];
+
+
+   notification *notif ;
+   
 
    signal(SIGINT, intHandler); //detect ctrl+c
    while(flag){
@@ -131,16 +181,19 @@ void *handle_client(void *arg) {
          break;
 
          case CMD_SEND:
-         // TO-DO: SEND command.
-         /* a “produção” de uma notificação envolverá 
-            (1) receber a notificação do processo cliente, 
-            (2) escrever a notificação na lista de notificações pendentes de envio e 
-            (3) para cada seguidor, atualizar a fila de notificações pendentes de recebimento */
+            // TO-DO
+            // ----------------- MUTEX -----------------------------
+            handle_send(notif, message, profile_id, newsockfd);
+            // ----------------- MUTEX -----------------------------
+
          break;
 
          case CMD_FOLLOW:
             strcpy(follow_name,message.payload);
-            handle_follow(follow_name, profile_id, newsockfd);    
+            // TO-DO
+            // ----------------- MUTEX -----------------------------
+            handle_follow(follow_name, profile_id, newsockfd);  
+            // ----------------- MUTEX ----------------------------- 
          break;
 
          case INIT_USER:
@@ -150,6 +203,14 @@ void *handle_client(void *arg) {
       
       free(message.payload);
    }
+
+}
+
+void *handle_client_consumes(void *arg) {
+
+   int newsockfd = *(int *) arg;
+
+
 
 }
 
@@ -206,7 +267,12 @@ int main( int argc, char *argv[] ) {
          exit(1);
       }
 
-      if(pthread_create(&client_pthread[i], NULL, handle_client, &newsockfd) != 0 ){
+      if(pthread_create(&client_pthread[i], NULL, handle_client_messages, &newsockfd) != 0 ){
+         printf("Failed to create thread");
+         exit(1);
+      }
+
+      if(pthread_create(&client_pthread[i], NULL, handle_client_consumes, &newsockfd) != 0 ){
          printf("Failed to create thread");
          exit(1);
       }

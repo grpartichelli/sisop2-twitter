@@ -27,6 +27,8 @@ int insert_profile(profile* profile_list, char* username){
             strcpy(profile_list[i].name,username);
             profile_list[i].online = 1;
             profile_list[i].num_followers = 0;
+            profile_list[i].num_snd_notifs = 0;
+            profile_list[i].num_pnd_notifs = 0;
             return i;
         }
     }
