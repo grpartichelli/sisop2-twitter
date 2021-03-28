@@ -243,7 +243,7 @@ void *handle_client_consumes(void *arg) {
 
    profile *p = &profile_list[profile_id];
    notification *n;
-   char *str_notif[200]; //String correspondent to the notification
+   char *str_notif; //String correspondent to the notification
 
    while(1){
       
@@ -256,9 +256,10 @@ void *handle_client_consumes(void *arg) {
             //Get the current notification
             n = profile_list[notif_identifier.profile_id].snd_notifs[notif_identifier.notif_id];
             
-
-            send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, );
-
+            notifToString(str_notif,*n);
+            send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, str_notif);
+            free(str_notif);
+            
             //Subtract number of pending readers
             n->pending--;
             if(n->pending == 0){ 
