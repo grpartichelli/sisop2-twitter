@@ -17,11 +17,19 @@
 
 #define PORT 4000
 
-
+//Struct used for creating threads
+typedef struct socket_and_profile{ 
+   int socket;
+   int profile_id;
+}socket_and_profile;
 
 int sqncnt = 0;
 int sockfd;
+
+pthread_t client_pthread[MAX_CLIENTS*2];
+
 profile profile_list[MAX_CLIENTS];
+
 
 //detecting ctrl+c
 void intHandler(int dummy) {
@@ -155,31 +163,19 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
 
 }
   
-void *handle_client_consumes(void *arg) {
-   //TO-DO Mutex?????
-   int newsockfd = *(int *) arg;
-   notification *notif;
-
-
-   while(1){
-
-      //TODO
-
-   }
-
-
-   //TO-DO Mutex?????
-}
 
 
 
 void *handle_client_messages(void *arg) {
 
-   
+   socket_and_profile ps = *(socket_and_profile *) arg;
+   int newsockfd = ps.socket;
+   int profile_id = ps.profile_id;
 
-   int newsockfd = *(int *) arg;
+
+   
    int flag = 1;
-   int profile_id;
+  
    packet message;
 
    char follow_name[21];
@@ -223,9 +219,7 @@ void *handle_client_messages(void *arg) {
 
          break;
 
-         case INIT_USER:
-            profile_id = handle_profile(message.payload,newsockfd);
-         break;
+         
       }
       
       free(message.payload);
@@ -233,11 +227,29 @@ void *handle_client_messages(void *arg) {
 
 }
 
+void *handle_client_consumes(void *arg) {
+   //TO-DO Mutex?????
+   socket_and_profile ps = *(socket_and_profile *) arg;
+   int newsockfd = ps.socket;
+   int profile_id = ps.profile_id;
+
+   notification *notif;
+
+
+   while(1){
+      printf("Consume thread :)\n");
+      sleep(5);
+   }
+
+
+   //TO-DO Mutex?????
+}
+
 
 
 int main( int argc, char *argv[] ) {
 
-   pthread_t client_pthread[MAX_CLIENTS];
+  
    int newsockfd, portno, clilen;
    int yes =1;
    struct sockaddr_in serv_addr, cli_addr;
@@ -277,7 +289,10 @@ int main( int argc, char *argv[] ) {
    listen(sockfd,5);
    clilen = sizeof(cli_addr);
 
-   int i=0;
+   int i=0,profile_id;
+   packet message;
+   socket_and_profile sp;
+
    while(1){
       signal(SIGINT, intHandler); //detect ctrl+c
       //ACCEPT
@@ -287,17 +302,34 @@ int main( int argc, char *argv[] ) {
          exit(1);
       }
 
-      if(pthread_create(&client_pthread[i], NULL, handle_client_messages, &newsockfd) != 0 ){
-         printf("Failed to create thread");
+
+      receive(newsockfd, &message);
+
+      if(message.type == INIT_USER){
+         profile_id = handle_profile(message.payload,newsockfd);
+      }
+      else{
+         printf("Error, user not initialized");
          exit(1);
       }
 
-      if(pthread_create(&client_pthread[i], NULL, handle_client_consumes, &newsockfd) != 0 ){
-         printf("Failed to create thread");
+      sp.profile_id = profile_id;
+      sp.socket = newsockfd;
+
+      if(pthread_create(&client_pthread[i], NULL, handle_client_messages, &sp) != 0 ){
+         printf("Failed to create handle client messages thread");
+         exit(1);
+      }
+
+      
+      if(pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &sp) != 0 ){
+         printf("Failed to create consume thread");
          exit(1);
       }
       
-      i++;
+     
+      
+      i+=2;
    }
 	  
    close(sockfd);
