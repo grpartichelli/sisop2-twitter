@@ -1,7 +1,7 @@
 #include "../include/notification.h"
 
-void printNotif(notification notif){
+void notifToString(char* msg, notification notif){
 
-	printf("[%.0i:%2.0i] %s - %s\n", notif.timestamp/100, notif.timestamp%100, notif.sender, notif.msg);
+	sprintf(msg, "[%.0i:%2.0i] %s - %s\n", notif.timestamp/100, notif.timestamp%100, notif.sender, notif.msg);
 
 }
