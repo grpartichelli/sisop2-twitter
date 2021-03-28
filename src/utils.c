@@ -8,7 +8,7 @@ void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pa
 	message.sqn = sqn;
 	message.len = len;
 	message.timestamp = timestamp;
-
+	
 	
 
 	if(DEBUG)

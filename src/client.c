@@ -73,7 +73,7 @@ void *client_input(void *arg)
             case CMD_FOLLOW:
                 if(in_buffer[7]=='@'){
                     if(strlen(in_buffer)-8 <=20 && strlen(in_buffer)-8 >=4)
-                        send_packet(sockfd, CMD_FOLLOW, ++sqncnt, strlen(in_buffer)-8, getTime(), in_buffer+8*sizeof(char));             
+                        send_packet(sockfd, CMD_FOLLOW, ++sqncnt, strlen(in_buffer)-7, getTime(), in_buffer+7*sizeof(char));             
                     else
                         printf("The username must be between 4 and 20 characters long.\n");
                 }
@@ -151,6 +151,9 @@ void *client_display(void *arg) {
             close(newsockfd);
             exit(1);
          break;     
+         case CMD_FOLLOW:
+            printf("%s\n", message.payload);
+         break;   
       }
       
       free(message.payload);

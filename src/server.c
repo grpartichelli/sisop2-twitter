@@ -49,7 +49,7 @@ int handle_profile(char *username, int newsockfd){
       if(profile_list[profile_id].online > 1){
          //TODO
          printf("Um usuario tentou exceder o numero de acessos.\n");
-         send_packet(newsockfd,CMD_QUIT,++sqncnt,1,0,"quit");
+         send_packet(newsockfd,CMD_QUIT,++sqncnt,4,0,"quit");
          close(newsockfd);
       }
       else{
@@ -64,14 +64,17 @@ int handle_profile(char *username, int newsockfd){
 
 void *handle_client(void *arg) {
 
-   // TO-DO: Login code. profile.online++.
+   
 
    int newsockfd = *(int *) arg;
    int flag = 1;
+   int profile_id;
    packet message;
 
+   char follow_name[21];
+   char payload[40];
+   int follow_id;
 
-   int profile_id;
 
    signal(SIGINT, intHandler); //detect ctrl+c
    while(flag){
@@ -83,7 +86,8 @@ void *handle_client(void *arg) {
       {
          case CMD_QUIT:
          // TO-DO: QUIT command. profile.online--, send a packet (SRV_MSG), close the socket. 
-            send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"Encerrando cliente");
+            
+            send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
             profile_list[profile_id].online -=1;
             close(newsockfd);
             flag = 0;
@@ -98,6 +102,20 @@ void *handle_client(void *arg) {
          break;
 
          case CMD_FOLLOW:
+            strcpy(follow_name,message.payload);
+            printf("FOLLOW NAME: %s\n",follow_name); 
+            follow_id = get_profile_id(profile_list,follow_name);
+
+            if(follow_id == -1){ //User doesnt exist
+               strcpy(payload,"FOLLOW falhou, usuario nao encontrado.\n");
+               send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
+               
+            }
+            else{
+               strcpy(payload,"FOLLOW executou com sucesso.\n");
+               send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload);  
+            }
+
          // TO-DO: FOLLOW command. verify whether the @ exists, if it doesn't send an error message to the client (SRV_MSG)
          // if it does, add the current user to the @'s list of followers and send the client an empty message (len=0).
 
