@@ -256,9 +256,10 @@ void *handle_client_consumes(void *arg) {
             //Get the current notification
             n = profile_list[notif_identifier.profile_id].snd_notifs[notif_identifier.notif_id];
             
+            notif_string = malloc(n->len+strlen(notif->sender)+12*sizeof(char));
             notifToString(str_notif,*n);
             send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, str_notif);
-            free(str_notif);
+            //free(str_notif);
             
             //Subtract number of pending readers
             n->pending--;
