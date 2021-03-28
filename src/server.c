@@ -127,7 +127,7 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
    }
 
    //Create notification
-   notif =  malloc(sizeof(notif));
+   notif =  malloc(sizeof(notification));
    notif->id = notif_id;
    notif->timestamp = message.timestamp;
    notif->msg = message.payload;
@@ -168,19 +168,14 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
 
 void *handle_client_messages(void *arg) {
 
+   //Getting the parameters
    socket_and_profile ps = *(socket_and_profile *) arg;
    int newsockfd = ps.socket;
    int profile_id = ps.profile_id;
-
-
-   
+   /////
    int flag = 1;
-  
    packet message;
-
    char follow_name[21];
-
-
    notification *notif ;
    
  
@@ -228,21 +223,53 @@ void *handle_client_messages(void *arg) {
 }
 
 void *handle_client_consumes(void *arg) {
-   //TO-DO Mutex?????
+   
+   //Getting the parameters
    socket_and_profile ps = *(socket_and_profile *) arg;
    int newsockfd = ps.socket;
    int profile_id = ps.profile_id;
 
-   notification *notif;
+   notif_identifier notif_identifier;
+   
+
+   profile *p = &profile_list[profile_id];
+   notification *n;
 
 
    while(1){
-      printf("Consume thread :)\n");
-      sleep(5);
+      
+      for(int i=0; i < p->num_pnd_notifs; i++){
+         //TO-DO Mutex?????
+         
+         notif_identifier = p->pnd_notifs[i];
+         if(notif_identifier.profile_id != -1){ //Notification exists
+            
+            //Get the current notification
+            n = profile_list[notif_identifier.profile_id].snd_notifs[notif_identifier.notif_id];
+            
+            
+
+            //Subtract number of pending readers
+            n->pending--;
+            if(n->pending == 0){ 
+               //Delete notification from sender
+               n = NULL;
+            }
+            
+
+            //Delete notification identifier from client
+            p->pnd_notifs[i].profile_id = -1;
+            p->pnd_notifs[i].notif_id = -1;
+         }
+
+         
+         //TO-DO Mutex????
+      
+      }
    }
 
 
-   //TO-DO Mutex?????
+   
 }
 
 

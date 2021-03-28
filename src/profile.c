@@ -23,12 +23,23 @@ int insert_profile(profile* profile_list, char* username){
 
     for(int i =0; i<MAX_CLIENTS; i++){
         if(profile_list[i].name == ""){
+        	
         	profile_list[i].name = (char*)malloc(strlen(username)+1);
             strcpy(profile_list[i].name,username);
             profile_list[i].online = 1;
             profile_list[i].num_followers = 0;
             profile_list[i].num_snd_notifs = 0;
             profile_list[i].num_pnd_notifs = 0;
+
+            //Initializing pending and send notifications
+            for(int j=0;j<MAX_NOTIFS; j++){
+
+            	profile_list[i].pnd_notifs[j].notif_id = -1;
+            	profile_list[i].pnd_notifs[j].profile_id = -1;
+            	profile_list[i].snd_notifs[j]= NULL;
+            }
+
+
             return i;
         }
     }
