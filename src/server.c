@@ -162,6 +162,7 @@ void *handle_client_messages(void *arg) {
 
    notification *notif ;
    
+ 
 
    signal(SIGINT, intHandler); //detect ctrl+c
    while(flag){
@@ -194,6 +195,7 @@ void *handle_client_messages(void *arg) {
             // ----------------- MUTEX -----------------------------
             handle_follow(follow_name, profile_id, newsockfd);  
             // ----------------- MUTEX ----------------------------- 
+            print_pnd_notifs(profile_list[profile_id]);
          break;
 
          case INIT_USER:

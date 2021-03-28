@@ -61,3 +61,12 @@ void print_profile_pointers(profile** profile_pointers){
 		}
 	}
 }
+
+void print_pnd_notifs(profile p){
+	int pid,nid;
+	for(int i=0;i<p.num_pnd_notifs;i++){
+         pid = p.pnd_notifs[i].profile_id;
+         nid = p.pnd_notifs[i].notif_id;
+         printf("Profile Id %d, Notif Id %d\n",pid,nid );
+   }
+}
