@@ -13,6 +13,7 @@
 #include <signal.h>
 
 #include "utils.c"
+#include "notification.c"
 
 void quit_signal();
 void intHandler(int dummy);
@@ -141,6 +142,8 @@ void *client_display(void *arg) {
    int flag = 1;
    packet message;
 
+   notification* n;
+   n = malloc(sizeof(notification));
 
    while(flag){
       
@@ -157,7 +160,8 @@ void *client_display(void *arg) {
             printf("%s\n", message.payload);
          break;   
          case NOTIF:
-            printf("%s\n", message.payload);
+            memcpy(n,message.payload,sizeof(notification));
+            printNotif(*n);
          break;  
       }
       

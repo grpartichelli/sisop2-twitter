@@ -3,6 +3,9 @@
 
 #define MAX_NOTIFS 750
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef struct notification{
  uint32_t id;           // Notification identifier (int, unique)
@@ -21,5 +24,6 @@ int notif_id;  //The id of the notification
 
 }notif_identifier;
 
+void printNotif(notification notif);
 
- #endif
+#endif
