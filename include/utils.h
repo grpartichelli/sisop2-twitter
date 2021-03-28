@@ -10,12 +10,12 @@
 
 #define DEBUG 0
 
-#define CMD_QUIT 0
-#define CMD_SEND 1
-#define CMD_FOLLOW 2
-#define NOTIF 3
-#define SRV_MSG 4
-#define	INIT_USER 5 
+#define CMD_QUIT 1
+#define CMD_SEND 2
+#define CMD_FOLLOW 3
+#define NOTIF 4
+#define SRV_MSG 5
+#define	INIT_USER 6 
 
 
 #define BUFFER_SIZE 256

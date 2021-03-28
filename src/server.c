@@ -32,7 +32,7 @@ void intHandler(int dummy) {
 
 
 
-int handle_profile(char *username){
+int handle_profile(char *username, int newsockfd){
 
    int profile_id = get_profile_id(profile_list,username);
 
@@ -48,7 +48,9 @@ int handle_profile(char *username){
    else{
       if(profile_list[profile_id].online > 1){
          //TODO
-         printf("ESSE USUARIO NÃO É PERMITIDO\n");
+         printf("Um usuario tentou exceder o numero de acessos.\n");
+         send_packet(newsockfd,CMD_QUIT,++sqncnt,1,0,"quit");
+         close(newsockfd);
       }
       else{
       
@@ -81,7 +83,7 @@ void *handle_client(void *arg) {
       {
          case CMD_QUIT:
          // TO-DO: QUIT command. profile.online--, send a packet (SRV_MSG), close the socket. 
-            send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
+            send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"Encerrando cliente");
             profile_list[profile_id].online -=1;
             close(newsockfd);
             flag = 0;
@@ -104,7 +106,7 @@ void *handle_client(void *arg) {
          case INIT_USER:
             
 
-            profile_id = handle_profile(message.payload);
+            profile_id = handle_profile(message.payload,newsockfd);
 
             
             

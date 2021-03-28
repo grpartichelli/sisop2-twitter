@@ -49,6 +49,7 @@ void *client_input(void *arg)
 
     while(1)
     {
+        
         bzero(in_buffer, BUFFER_SIZE);
         printf("Enter a command: \n");
         
@@ -83,7 +84,10 @@ void *client_input(void *arg)
                 break;
             default:
                 printf("Unknown command, try SEND <message> or FOLLOW <username>. To quit, use CTRL+C/D.\n");
+            
+
         }
+
     }
         
 }
@@ -105,6 +109,7 @@ int get_command(char* buffer)
 
 }
 
+/*
 //Receive server response and display to user
 void *client_display(void *arg) {
     int n, sockfd  = *(int *) arg;
@@ -113,14 +118,44 @@ void *client_display(void *arg) {
     bzero(buffer, BUFFER_SIZE);
     
     while(1){
-        /* read from the socket */
+        
         n = read(sockfd, buffer, BUFFER_SIZE);
         while(n < 0){
             n = read(sockfd, buffer, BUFFER_SIZE);
         }
 
+
+
         printf("%s\n",buffer);
     }
+}
+*/
+
+void *client_display(void *arg) {
+
+   // TO-DO: Login code. profile.online++.
+
+   int newsockfd = *(int *) arg;
+   int flag = 1;
+   packet message;
+
+
+   while(flag){
+      
+      //READ
+      receive(newsockfd, &message);
+      switch(message.type)
+      {
+         case CMD_QUIT:
+            printf("Numero maximo de acessos excedido.\n");
+            close(newsockfd);
+            exit(1);
+         break;     
+      }
+      
+      free(message.payload);
+   }
+
 }
 
 void validate_user(char *profile){
