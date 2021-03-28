@@ -114,6 +114,10 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
    notif_id = profile_list[profile_id].num_snd_notifs;
    profile_list[profile_id].num_snd_notifs++;
 
+   if(notif_id == MAX_NOTIFS){//Making it circular, will erase the first notification 
+      notif_id = 0;           //if the server didnt send it (it should have by then)
+   }
+
    //Create notification
    notif =  malloc(sizeof(notif));
    notif->id = notif_id;
@@ -136,6 +140,10 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
       num_pnd_notifs = p->num_pnd_notifs; 
       p->num_pnd_notifs++;
 
+      if(p->num_pnd_notifs == MAX_NOTIFS){//Making it circular, will erase the first notification 
+         p->num_pnd_notifs =0;           //if the server didnt send it (it should have by then)
+      }
+
       p->pnd_notifs[num_pnd_notifs].notif_id= notif_id;
       p->pnd_notifs[num_pnd_notifs].profile_id= profile_id;
    
@@ -147,6 +155,23 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
 
 }
   
+void *handle_client_consumes(void *arg) {
+   //TO-DO Mutex?????
+   int newsockfd = *(int *) arg;
+   notification *notif;
+
+
+   while(1){
+
+      //TODO
+
+   }
+
+
+   //TO-DO Mutex?????
+}
+
+
 
 void *handle_client_messages(void *arg) {
 
@@ -195,7 +220,7 @@ void *handle_client_messages(void *arg) {
             // ----------------- MUTEX -----------------------------
             handle_follow(follow_name, profile_id, newsockfd);  
             // ----------------- MUTEX ----------------------------- 
-            print_pnd_notifs(profile_list[profile_id]);
+
          break;
 
          case INIT_USER:
@@ -208,13 +233,6 @@ void *handle_client_messages(void *arg) {
 
 }
 
-void *handle_client_consumes(void *arg) {
-
-   int newsockfd = *(int *) arg;
-
-
-
-}
 
 
 int main( int argc, char *argv[] ) {

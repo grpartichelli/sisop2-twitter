@@ -1,7 +1,7 @@
 #ifndef NOTIFICATION_H
 #define NOTIFICATION_H
 
-#define MAX_NOTIFS 500
+#define MAX_NOTIFS 750
 
 
 typedef struct notification{
