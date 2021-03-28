@@ -21,6 +21,5 @@ int notif_id;  //The id of the notification
 
 }notif_identifier;
 
-void printNotif(notification notif);
 
  #endif

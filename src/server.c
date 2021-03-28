@@ -134,16 +134,16 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
    notif->len = message.len;
    notif->pending = profile_list[profile_id].num_followers;
 
+/*
    char* notif_string;
-   
 
    if (DEBUG)
    {
-      notif_string = malloc(message.len+strlen(notif->sender)+12*sizeof(char));
-      notifToString(notif_string, *notif);
+      strcpy(notif_string,notifToStr(*notif));
       puts(notif_string);
       free(notif_string);
    }
+*/
 
    //Putting the notification on the current profile as send
    profile_list[profile_id].snd_notifs[notif_id] = notif;
@@ -243,7 +243,7 @@ void *handle_client_consumes(void *arg) {
 
    profile *p = &profile_list[profile_id];
    notification *n;
-   char *str_notif; //String correspondent to the notification
+   char str_notif[128]; //String correspondent to the notification
 
    while(1){
       
@@ -255,9 +255,9 @@ void *handle_client_consumes(void *arg) {
             
             //Get the current notification
             n = profile_list[notif_identifier.profile_id].snd_notifs[notif_identifier.notif_id];
-            
-            notif_string = malloc(n->len+strlen(notif->sender)+12*sizeof(char));
-            notifToString(str_notif,*n);
+
+            strcpy(str_notif,"Recebida!");
+
             send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, str_notif);
             //free(str_notif);
             
