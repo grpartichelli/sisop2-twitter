@@ -129,12 +129,14 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
    //Create notification
    notif =  malloc(sizeof(notification));
    notif->id = notif_id;
+   notif->sender = profile_list[profile_id].name;
    notif->timestamp = message.timestamp;
    notif->msg = message.payload;
    notif->len = message.len;
-   notif->pending= profile_list[profile_id].num_followers;
+   notif->pending = profile_list[profile_id].num_followers;
 
-
+   if (DEBUG)
+      printNotif(*notif);
 
    //Putting the notification on the current profile as send
    profile_list[profile_id].snd_notifs[notif_id] = notif;
