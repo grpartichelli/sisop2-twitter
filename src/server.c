@@ -76,9 +76,10 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
    int follow_id;
    int num_followers;
 
-
    follow_id = get_profile_id(profile_list,follow_name);
 
+   
+   // CHECK FOR UNALLOWED FOLLOWERS
    if(follow_id == -1){ //User doesnt exist
       strcpy(payload,"FOLLOW falhou, usuario nao encontrado.\n");
       send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
@@ -92,16 +93,14 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
    }
 
 
-
+   //ADD FOLLOWER
    num_followers =  profile_list[follow_id].num_followers;
-
    if(num_followers >= MAX_FOLLOW){
       printf("Account reached max number of followers\n");
       exit(1);
    }
 
    profile_list[follow_id].num_followers++;
-
    profile_list[follow_id].followers[num_followers] =  &profile_list[profile_id];
 
    strcpy(payload,"FOLLOW executou com sucesso.\n");
@@ -236,7 +235,7 @@ void *handle_client_consumes(void *arg) {
 
    profile *p = &profile_list[profile_id];
    notification *n;
-
+   char *str_notif[200]; //String correspondent to the notification
 
    while(1){
       
@@ -249,7 +248,8 @@ void *handle_client_consumes(void *arg) {
             //Get the current notification
             n = profile_list[notif_identifier.profile_id].snd_notifs[notif_identifier.notif_id];
             
-            
+
+            send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, );
 
             //Subtract number of pending readers
             n->pending--;

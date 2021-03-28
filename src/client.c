@@ -156,6 +156,9 @@ void *client_display(void *arg) {
          case CMD_FOLLOW:
             printf("%s\n", message.payload);
          break;   
+         case NOTIF:
+            printf("%s\n", message.payload);
+         break;  
       }
       
       free(message.payload);

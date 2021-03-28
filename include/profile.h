@@ -21,4 +21,15 @@ typedef struct profile{
  } profile;
 
 
+
+void init_profiles(profile* profile_list); //Loads all the starting profiles
+int insert_profile(profile* profile_list, char* username); //Inserts a new profile
+int get_profile_id(profile* profile_list, char *username); //Gets a profile bid by name
+
+
+void print_profile_pointers(profile** profile_pointers);
+void print_pnd_notifs(profile p);
+void print_profiles(profile* profile_list);
+
+
 #endif
