@@ -157,11 +157,8 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
 
 
 
-   
-
 }
   
-
 
 void *handle_client_messages(void *arg) {
 
@@ -239,11 +236,11 @@ void *handle_client_consumes(void *arg) {
    notification *n;
    char *str_notif; //String correspondent to the notification
 
-   while(par->flag){
 
+   while(par->flag){//Flag synchronized with other thread
+      //Iterating through pending notifs
       for(int i=0; i < p->num_pnd_notifs; i++){
          
-
 
          notif_identifier = p->pnd_notifs[i];
          if(notif_identifier.profile_id != -1){ //Notification exists
@@ -260,8 +257,10 @@ void *handle_client_consumes(void *arg) {
             //BARRIER FOR CONCURRENT CLIENTS
             pthread_barrier_wait (&barriers[profile_id]);
 
-
-            pthread_mutex_lock(&send_mutex); //Not allowing notifications to be changed at the same time
+            //START MUTEX
+            //Not allowing notifications to be changed at the same time
+            pthread_mutex_lock(&send_mutex); 
+            
             if(par->flag){
                //Subtract number of pending readers
                n->pending--;
@@ -270,12 +269,11 @@ void *handle_client_consumes(void *arg) {
                   n = NULL;
                }
                
-
                //Delete notification identifier from client
                p->pnd_notifs[i].profile_id = -1;
                p->pnd_notifs[i].notif_id = -1;
-
             }
+            //END MUTEX
             pthread_mutex_unlock(&send_mutex);
            
          }
@@ -300,41 +298,34 @@ void init_barriers(){
 
 int main( int argc, char *argv[] ) {
 
-  
+   int i=0,profile_id;
    int newsockfd, portno, clilen;
    int yes =1;
    struct sockaddr_in serv_addr, cli_addr;
+   packet message;
+   thread_parameters parameters[MAX_CLIENTS];
    
+   //INIT STRUCTURES
    init_profiles(profile_list);
    init_barriers();
   
 
-
-   //Create socket
+   //CREATE SOCKET
    sockfd = socket(AF_INET, SOCK_STREAM, 0);
    
-   if (sockfd < 0) {
-      printf("ERROR opening socket\n");
-      exit(1);
-   }
-   
+   //OPEN SOCKET  
+   print_error((sockfd < 0),"ERROR opening socket\n");  
+  
+
    //Initializing structure
-   bzero((char *) &serv_addr, sizeof(serv_addr));
-   
+   bzero((char *) &serv_addr, sizeof(serv_addr)); 
    serv_addr.sin_family = AF_INET;
    serv_addr.sin_addr.s_addr = INADDR_ANY;
    serv_addr.sin_port = htons(PORT);
 
-   // BIND TO HOST
-
-   if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
-       perror("setsockopt");
-       exit(1);
-   }
-   if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-      printf("ERROR on binding.\n");
-      exit(1);
-   }
+   //BIND TO HOST
+   print_error((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1),"ERROR on setsockopt\n"); 
+   print_error((bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0),"ERROR on binding.\n"); 
 
    printf("Server started correctly.\n");
 
@@ -342,9 +333,6 @@ int main( int argc, char *argv[] ) {
    listen(sockfd,5);
    clilen = sizeof(cli_addr);
 
-   int i=0,profile_id;
-   packet message;
-   thread_parameters parameters[MAX_CLIENTS];
 
    while(1){
       signal(SIGINT, intHandler); //detect ctrl+c
@@ -357,34 +345,22 @@ int main( int argc, char *argv[] ) {
 
 
       receive(newsockfd, &message);
-
-      if(message.type == INIT_USER){
-         profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt);
-         //Update barrier in case number of online user changed
-         pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
-      }
-      else{
-         printf("Error, user not initialized");
-         exit(1);
-      }
-
+      print_error((message.type != INIT_USER),"Error, user not initialized.\n");
+         
+      //Create or update profile
+      profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt);
+      //Update barrier in case number of online user changed
+      pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
       free(message.payload);
 
+      //LOAD PARAMETERS FOR THREADS
       parameters[i].profile_id = profile_id;
       parameters[i].socket = newsockfd;
       parameters[i].flag = 1;
       
-
-      if(pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ){
-         printf("Failed to create handle client messages thread");
-         exit(1);
-      }
-
-      
-      if(pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ){
-         printf("Failed to create consume thread");
-         exit(1);
-      }
+      //One thread consumes notifications, the other reads user input
+      print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
+      print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
       
      
       
