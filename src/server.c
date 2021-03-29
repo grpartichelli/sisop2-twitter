@@ -31,7 +31,7 @@ pthread_t client_pthread[MAX_CLIENTS*2];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 profile profile_list[MAX_CLIENTS];
-
+pthread_barrier_t   barriers[MAX_CLIENTS]; 
 
 //detecting ctrl+c
 void intHandler(int dummy) {
@@ -65,6 +65,7 @@ int handle_profile(char *username, int newsockfd){
       else{
       
          profile_list[profile_id].online +=1;
+         pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
       }
    }
 
@@ -206,6 +207,7 @@ void *handle_client_messages(void *arg) {
             send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
             
             profile_list[profile_id].online -=1;
+            pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
 
             close(newsockfd);
           
@@ -254,8 +256,9 @@ void *handle_client_consumes(void *arg) {
    while(par->flag){
 
       for(int i=0; i < p->num_pnd_notifs; i++){
-         pthread_mutex_lock(&mutex);
          
+
+
          notif_identifier = p->pnd_notifs[i];
          if(notif_identifier.profile_id != -1){ //Notification exists
             
@@ -267,7 +270,11 @@ void *handle_client_consumes(void *arg) {
             //Send the notification
             send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, str_notif);
             free(str_notif);
-               
+             
+
+            pthread_barrier_wait (&barriers[profile_id]);
+
+
             if(par->flag){
                //Subtract number of pending readers
                n->pending--;
@@ -282,8 +289,9 @@ void *handle_client_consumes(void *arg) {
                p->pnd_notifs[i].notif_id = -1;
 
             }
+           
          }
-         pthread_mutex_unlock(&mutex);
+         
       }
 
    }
@@ -292,6 +300,12 @@ void *handle_client_consumes(void *arg) {
    
 }
 
+void init_barriers(){
+
+   for(int i=0;i<MAX_CLIENTS;i++){
+       pthread_barrier_init (&barriers[i], NULL, 0);
+   }
+}
 
 
 int main( int argc, char *argv[] ) {
@@ -302,7 +316,8 @@ int main( int argc, char *argv[] ) {
    struct sockaddr_in serv_addr, cli_addr;
    
    init_profiles(profile_list);
-   
+   init_barriers();
+
 
    //Create socket
    sockfd = socket(AF_INET, SOCK_STREAM, 0);
