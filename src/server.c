@@ -31,11 +31,10 @@ profile profile_list[MAX_CLIENTS];
 
 //THREADS
 pthread_t client_pthread[MAX_CLIENTS*2];
+
 //MUTEX
-pthread_mutex_t notif_mutex =  PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t follow_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-
 //CONSUMER BARRIER
 pthread_barrier_t  barriers[MAX_CLIENTS]; 
 
@@ -230,11 +229,11 @@ void *handle_client_messages(void *arg) {
 
          case CMD_SEND: 
             //Two threads cannot alter notifications at the same time
-            pthread_mutex_lock(&notif_mutex);
+            pthread_mutex_lock(&send_mutex);
 
             handle_send(notif, message, profile_id, newsockfd); 
 
-            pthread_mutex_unlock(&notif_mutex); 
+            pthread_mutex_unlock(&send_mutex); 
          break;
 
          case CMD_FOLLOW:
