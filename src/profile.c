@@ -1,6 +1,39 @@
 #include "../include/profile.h"
+#include "../include/utils.h"
 
+//Add profile if it doesn't exist, else add to online 
+int handle_profile(profile *profile_list, char *username, int newsockfd, int sqncnt){
 
+  
+   int profile_id = get_profile_id(profile_list,username);
+
+   if(profile_id == -1){ //CASO NÃO EXISTA 
+
+      //INSERE
+      profile_id = insert_profile(profile_list, username);
+
+      if(profile_id == -1){
+         printf("MAX NUMBER OF PROFILES REACHED\n");
+         exit(1);
+      }
+   } 
+   else{//CASO USUARIO JÁ EXISTA
+      if(profile_list[profile_id].online > 1){ //MAXIMO NUMERO DE ACESSOS É 2
+         
+         printf("Um usuario tentou exceder o numero de acessos.\n");
+         send_packet(newsockfd,CMD_QUIT,sqncnt,4,0,"quit");
+         close(newsockfd);
+      }
+      else{
+         //AUMENTA A QUANTIDADE DE USUARIOS ONLINE
+         profile_list[profile_id].online +=1;
+      }
+   }
+
+   
+   return profile_id;
+
+}
 
 void init_profiles(profile* profile_list){
 

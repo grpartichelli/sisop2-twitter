@@ -14,6 +14,7 @@
 #include "utils.c"
 #include "profile.c"
 #include "notification.c"
+#include "error_handler.c"
 
 #define PORT 4000
 
@@ -27,17 +28,18 @@ typedef struct thread_parameters{
 int sqncnt = 0;
 int sockfd;
 
-profile profile_list[MAX_CLIENTS];
-
 //THREADS
-pthread_t client_pthread[MAX_CLIENTS*2];
+pthread_t client_pthread[MAX_CLIENTS*2]; //Each client has two threads, one for consuming and one for producing
 
 //MUTEX
-pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t follow_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER; //Making sure sends can't alter notifications at the same time
+pthread_mutex_t follow_mutex = PTHREAD_MUTEX_INITIALIZER;//Making sure follow can't alter followers at the same time
 
 //CONSUMER BARRIER
 pthread_barrier_t  barriers[MAX_CLIENTS]; 
+
+//LIST OF PROFILES
+profile profile_list[MAX_CLIENTS];
 
 //detecting ctrl+c
 void intHandler(int dummy) {
@@ -46,56 +48,14 @@ void intHandler(int dummy) {
    exit(0);
 }
 
-
-
-int handle_profile(char *username, int newsockfd){
-
-  
-   int profile_id = get_profile_id(profile_list,username);
-
-   if(profile_id == -1){ //CASO NÃO EXISTA 
-
-      //INSERE
-      profile_id = insert_profile(profile_list, username);
-
-      if(profile_id == -1){
-         printf("MAX NUMBER OF PROFILES REACHED\n");
-         exit(1);
-      }
-   } 
-   else{//CASO USUARIO JÁ EXISTA
-      if(profile_list[profile_id].online > 1){ //MAXIMO NUMERO DE ACESSOS É 2
-         
-         printf("Um usuario tentou exceder o numero de acessos.\n");
-         send_packet(newsockfd,CMD_QUIT,++sqncnt,4,0,"quit");
-         close(newsockfd);
-      }
-      else{
-         //AUMENTA A QUANTIDADE DE USUARIOS ONLINE
-         profile_list[profile_id].online +=1;
-         pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
-      }
-   }
-
-   
-   return profile_id;
-
-}
-void handle_follow(char *follow_name, int profile_id, int newsockfd){
-
-   
+int validate_follow(int follow_id,int profile_id, char *follow_name, int newsockfd){
    char payload[100];
-   int follow_id;
-   int num_followers;
 
-   follow_id = get_profile_id(profile_list,follow_name);
-
-   
    // CHECK FOR UNALLOWED FOLLOWERS
    if(follow_id == -1){ //User doesnt exist
-      strcpy(payload,"FOLLOW falhou, usuario nao encontrado.");
+      strcpy(payload,"FOLLOW falhou, usuario nao encontrado." );
       send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-      return;
+      return 0;
    }
 
    
@@ -103,7 +63,7 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
    if(strcmp(follow_name,profile_list[profile_id].name) == 0 ){
       strcpy(payload,"FOLLOW falhou, voce nao pode se seguir.");
       send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-      return;
+      return 0;
    }
    
 
@@ -114,29 +74,38 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
 
          strcpy(payload,"FOLLOW falhou, voce nao pode seguir alguem duas vezes.");
          send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-         return;
+         return 0;
       }
 
    }
+   return 1;
+}
 
-   
 
+void handle_follow(char *follow_name, int profile_id, int newsockfd){
+
+   char payload[100];  
+   int follow_id;
+   int num_followers;
+
+   follow_id = get_profile_id(profile_list,follow_name);
+
+   //check if follower is legit
+   if(!validate_follow(follow_id,profile_id,follow_name,newsockfd))
+      return;
+  
+   //CHECK IF USER CAN FOLLOW
    num_followers =  profile_list[follow_id].num_followers;
-   if(num_followers >= MAX_FOLLOW){
-      printf("Account reached max number of followers\n");
-      exit(1);
-   }
-
+   print_error((num_followers >= MAX_FOLLOW),"Account reached max number of followers\n");
+    
    //ADD FOLLOWER
    profile_list[follow_id].num_followers++;
    profile_list[follow_id].followers[num_followers] =  &profile_list[profile_id];
 
+   //SEND TO USER THAT FOLLOW WAS SUCCESSFULL
    strcpy(payload,"FOLLOW executou com sucesso.");
    send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload);  
    
- 
-
-
 }
 
 void handle_send(notification *notif, packet message, int profile_id, int newsockfd){
@@ -192,7 +161,6 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
 
 }
   
-
 
 
 void *handle_client_messages(void *arg) {
@@ -293,7 +261,7 @@ void *handle_client_consumes(void *arg) {
             pthread_barrier_wait (&barriers[profile_id]);
 
 
-            pthread_mutex_lock(&follow_mutex); //Not allowing notifications to be changed at the same time
+            pthread_mutex_lock(&send_mutex); //Not allowing notifications to be changed at the same time
             if(par->flag){
                //Subtract number of pending readers
                n->pending--;
@@ -308,7 +276,7 @@ void *handle_client_consumes(void *arg) {
                p->pnd_notifs[i].notif_id = -1;
 
             }
-            pthread_mutex_unlock(&follow_mutex);
+            pthread_mutex_unlock(&send_mutex);
            
          }
          
@@ -391,7 +359,9 @@ int main( int argc, char *argv[] ) {
       receive(newsockfd, &message);
 
       if(message.type == INIT_USER){
-         profile_id = handle_profile(message.payload,newsockfd);
+         profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt);
+         //Update barrier in case number of online user changed
+         pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
       }
       else{
          printf("Error, user not initialized");

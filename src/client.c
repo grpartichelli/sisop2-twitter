@@ -137,8 +137,8 @@ void *client_display(void *arg) {
 
 void validate_user(char *profile){
     //Test if username is the correct size and has a @
-    signal_error(!(strlen(profile) <=20 && strlen(profile) >=4),"The username must be between 4 and 20 characters long.\n"); 
-    signal_error((profile[0] != '@'),"The username must start with @ \n"); 
+    print_error(!(strlen(profile) <=20 && strlen(profile) >=4),"The username must be between 4 and 20 characters long.\n"); 
+    print_error((profile[0] != '@'),"The username must start with @ \n"); 
 }
 
 void load_user(char *profile){
@@ -160,11 +160,11 @@ int main(int argc, char *argv[])
     int port;
 
     //Check if correct input
-    signal_error((argc < 4),"Usage: ./app_cliente <profile> <server_address> <port>\n");
+    print_error((argc < 4),"Usage: ./app_cliente <profile> <server_address> <port>\n");
     
     //Check for correct HOST
     server = gethostbyname(argv[2]);
-    signal_error((server == NULL), "ERROR, no such host\n");
+    print_error((server == NULL), "ERROR, no such host\n");
    
     //GET PORT
     port = atoi(argv[3]);
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
     printf("Use the commands FOLLOW and SEND to comunicate with the server.\n");
 
     //OPEN SOCKET
-    signal_error(((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
+    print_error(((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
        
     //COONECT SOCKET
 	serv_addr.sin_family = AF_INET;     
@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
 	serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
 	bzero(&(serv_addr.sin_zero), 8);     
    
-    signal_error((connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
+    print_error((connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
 	
     //SEND USER INITIALIZATION TO SERVER
     load_user(profile);
