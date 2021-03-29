@@ -18,10 +18,11 @@
 #define PORT 4000
 
 //Struct used for creating threads
-typedef struct socket_and_profile{ 
+typedef struct thread_parameters{ 
    int socket;
    int profile_id;
-}socket_and_profile;
+   int flag; 
+}thread_parameters;
 
 int sqncnt = 0;
 int sockfd;
@@ -169,11 +170,11 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
 void *handle_client_messages(void *arg) {
 
    //Getting the parameters
-   socket_and_profile ps = *(socket_and_profile *) arg;
-   int newsockfd = ps.socket;
-   int profile_id = ps.profile_id;
+   thread_parameters *par = (thread_parameters *) arg;
+   int newsockfd = par->socket;
+   int profile_id = par->profile_id;
    /////
-   int flag = 1;
+   
    packet message;
    char follow_name[21];
    notification *notif ;
@@ -181,7 +182,7 @@ void *handle_client_messages(void *arg) {
  
 
    signal(SIGINT, intHandler); //detect ctrl+c
-   while(flag){
+   while(par->flag){
       
       //READ
       receive(newsockfd, &message);
@@ -193,8 +194,11 @@ void *handle_client_messages(void *arg) {
             
             send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
             profile_list[profile_id].online -=1;
+            
             close(newsockfd);
-            flag = 0;
+            //close(++newsockfd);
+
+            par->flag = 0;
          break;
 
          case CMD_SEND:
@@ -225,9 +229,9 @@ void *handle_client_messages(void *arg) {
 void *handle_client_consumes(void *arg) {
    
    //Getting the parameters
-   socket_and_profile ps = *(socket_and_profile *) arg;
-   int newsockfd = ps.socket;
-   int profile_id = ps.profile_id;
+   thread_parameters *par = (thread_parameters *) arg;
+   int newsockfd = par->socket;
+   int profile_id = par->profile_id;
 
    notif_identifier notif_identifier;
    
@@ -235,9 +239,9 @@ void *handle_client_consumes(void *arg) {
    profile *p = &profile_list[profile_id];
    notification *n;
    char *str_notif; //String correspondent to the notification
+ 
+   while(par->flag){
 
-   while(1){
-      
       for(int i=0; i < p->num_pnd_notifs; i++){
          //TO-DO Mutex?????
          
@@ -248,20 +252,24 @@ void *handle_client_consumes(void *arg) {
             n = profile_list[notif_identifier.profile_id].snd_notifs[notif_identifier.notif_id];
             str_notif=malloc(n->len+strlen(n->sender)+12*sizeof(char));
             sprintf(str_notif,"[%.0i:%02d] %s - %s\n", n->timestamp/100, n->timestamp%100, n->sender, n->msg);
+
+            //Send the notification
             send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, str_notif);
             free(str_notif);
-            
-            //Subtract number of pending readers
-            n->pending--;
-            if(n->pending == 0){ 
-               //Delete notification from sender
-               n = NULL;
-            }
-            
+               
+            if(par->flag){
+               //Subtract number of pending readers
+               n->pending--;
+               if(n->pending == 0){ 
+                  //Delete notification from sender
+                  n = NULL;
+               }
+               
 
-            //Delete notification identifier from client
-            p->pnd_notifs[i].profile_id = -1;
-            p->pnd_notifs[i].notif_id = -1;
+               //Delete notification identifier from client
+               p->pnd_notifs[i].profile_id = -1;
+               p->pnd_notifs[i].notif_id = -1;
+            }
          }
 
          
@@ -320,7 +328,7 @@ int main( int argc, char *argv[] ) {
 
    int i=0,profile_id;
    packet message;
-   socket_and_profile sp;
+   thread_parameters parameters[MAX_CLIENTS];
 
    while(1){
       signal(SIGINT, intHandler); //detect ctrl+c
@@ -344,16 +352,17 @@ int main( int argc, char *argv[] ) {
 
       free(message.payload);
 
-      sp.profile_id = profile_id;
-      sp.socket = newsockfd;
+      parameters[i].profile_id = profile_id;
+      parameters[i].socket = newsockfd;
+      parameters[i].flag = 1;
 
-      if(pthread_create(&client_pthread[i], NULL, handle_client_messages, &sp) != 0 ){
+      if(pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ){
          printf("Failed to create handle client messages thread");
          exit(1);
       }
 
       
-      if(pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &sp) != 0 ){
+      if(pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ){
          printf("Failed to create consume thread");
          exit(1);
       }
