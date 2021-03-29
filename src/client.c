@@ -31,6 +31,8 @@ void quit_signal(){ //Não sei se devemos manter assim.
     send_packet(sockfd,CMD_QUIT,++sqncnt,0,0,"");
     receive_and_print(sockfd);
     close(sockfd);
+    system("clear"); 
+    printf("Cliente encerrou sua sessão.\n");
     exit(1);
 }
 
@@ -110,28 +112,6 @@ int get_command(char* buffer)
     return -1; 
 
 }
-
-/*
-//Receive server response and display to user
-void *client_display(void *arg) {
-    int n, sockfd  = *(int *) arg;
-
-    char buffer[BUFFER_SIZE];
-    bzero(buffer, BUFFER_SIZE);
-    
-    while(1){
-        
-        n = read(sockfd, buffer, BUFFER_SIZE);
-        while(n < 0){
-            n = read(sockfd, buffer, BUFFER_SIZE);
-        }
-
-
-
-        printf("%s\n",buffer);
-    }
-}
-*/
 
 void *client_display(void *arg) {
 
