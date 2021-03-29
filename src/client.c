@@ -13,7 +13,6 @@
 #include <signal.h>
 
 #include "utils.c"
-#include "notification.c"
 
 void quit_signal();
 void intHandler(int dummy);
@@ -142,8 +141,6 @@ void *client_display(void *arg) {
    int flag = 1;
    packet message;
 
-   notification* n;
-   n = malloc(sizeof(notification));
 
    while(flag){
       
@@ -160,8 +157,7 @@ void *client_display(void *arg) {
             printf("%s\n", message.payload);
          break;   
          case NOTIF:
-            memcpy(n,message.payload,sizeof(notification));
-            printNotif(*n);
+            printf("%s\n", message.payload);
          break;  
       }
       
@@ -219,12 +215,12 @@ int main(int argc, char *argv[])
     /////////////////////////////////
 
     ////////////////////////////////
-    //TODO Check for correct PORT
+    //TO-DO Check for correct PORT
     port = atoi(argv[3]);
     //////////////////////////////
 
 
-    //TODO Check for correct USER
+    //TO-DO Check for correct USER
     strcpy(profile,argv[1]);
     validate_user(profile);
     //////////////////////////////

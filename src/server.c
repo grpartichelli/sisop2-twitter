@@ -27,6 +27,7 @@ int sqncnt = 0;
 int sockfd;
 
 pthread_t client_pthread[MAX_CLIENTS*2];
+pthread_mutex_t mutex[MAX_CLIENTS] = PTHREAD_MUTEX_INITIALIZER;
 
 profile profile_list[MAX_CLIENTS];
 
@@ -81,13 +82,13 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
    
    // CHECK FOR UNALLOWED FOLLOWERS
    if(follow_id == -1){ //User doesnt exist
-      strcpy(payload,"FOLLOW falhou, usuario nao encontrado.\n");
+      strcpy(payload,"FOLLOW falhou, usuario nao encontrado.");
       send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
       return;
    }
 
    if(strcmp(follow_name,profile_list[profile_id].name) == 0 ){
-      strcpy(payload,"FOLLOW falhou, voce nao pode se seguir.\n");
+      strcpy(payload,"FOLLOW falhou, voce nao pode se seguir.");
       send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
       return;
    }
@@ -103,7 +104,7 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
    profile_list[follow_id].num_followers++;
    profile_list[follow_id].followers[num_followers] =  &profile_list[profile_id];
 
-   strcpy(payload,"FOLLOW executou com sucesso.\n");
+   strcpy(payload,"FOLLOW executou com sucesso.");
    send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload);  
 
 
@@ -130,15 +131,10 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
    notif->id = notif_id;
    notif->sender = profile_list[profile_id].name;
    notif->timestamp = message.timestamp;
-   notif->msg = message.payload;
+   notif->msg = (char*)malloc(strlen(message.payload)*sizeof(char)+sizeof(char));
+   memcpy(notif->msg,message.payload,strlen(message.payload)*sizeof(char)+sizeof(char));
    notif->len = message.len;
    notif->pending = profile_list[profile_id].num_followers;
-
-
-   if (DEBUG)
-      printNotif(*notif);
-
-
 
    //Putting the notification on the current profile as send
    profile_list[profile_id].snd_notifs[notif_id] = notif;
@@ -238,7 +234,7 @@ void *handle_client_consumes(void *arg) {
 
    profile *p = &profile_list[profile_id];
    notification *n;
-   char char_notif[sizeof(notification)+1]; //String correspondent to the notification
+   char *str_notif; //String correspondent to the notification
 
    while(1){
       
@@ -250,11 +246,10 @@ void *handle_client_consumes(void *arg) {
             
             //Get the current notification
             n = profile_list[notif_identifier.profile_id].snd_notifs[notif_identifier.notif_id];
-
-            memcpy(char_notif,n,sizeof(notification));
-            char_notif[sizeof(notification)]='\0';
-
-            send_packet(newsockfd,NOTIF,++sqncnt,sizeof(notification), n->timestamp, char_notif);
+            str_notif=malloc(n->len+strlen(n->sender)+12*sizeof(char));
+            sprintf(str_notif,"[%.0i:%02d] %s - %s\n", n->timestamp/100, n->timestamp%100, n->sender, n->msg);
+            send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, str_notif);
+            free(str_notif);
             
             //Subtract number of pending readers
             n->pending--;
@@ -346,6 +341,8 @@ int main( int argc, char *argv[] ) {
          printf("Error, user not initialized");
          exit(1);
       }
+
+      free(message.payload);
 
       sp.profile_id = profile_id;
       sp.socket = newsockfd;
