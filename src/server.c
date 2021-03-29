@@ -27,11 +27,17 @@ typedef struct thread_parameters{
 int sqncnt = 0;
 int sockfd;
 
-pthread_t client_pthread[MAX_CLIENTS*2];
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
 profile profile_list[MAX_CLIENTS];
-pthread_barrier_t   barriers[MAX_CLIENTS]; 
+
+//THREADS
+pthread_t client_pthread[MAX_CLIENTS*2];
+//MUTEX
+pthread_mutex_t notif_mutex =  PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t follow_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+
+//CONSUMER BARRIER
+pthread_barrier_t  barriers[MAX_CLIENTS]; 
 
 //detecting ctrl+c
 void intHandler(int dummy) {
@@ -44,10 +50,12 @@ void intHandler(int dummy) {
 
 int handle_profile(char *username, int newsockfd){
 
+  
    int profile_id = get_profile_id(profile_list,username);
 
-   if(profile_id == -1){
-      
+   if(profile_id == -1){ //CASO NÃO EXISTA 
+
+      //INSERE
       profile_id = insert_profile(profile_list, username);
 
       if(profile_id == -1){
@@ -55,20 +63,21 @@ int handle_profile(char *username, int newsockfd){
          exit(1);
       }
    } 
-   else{
-      if(profile_list[profile_id].online > 1){
-         //TODO
+   else{//CASO USUARIO JÁ EXISTA
+      if(profile_list[profile_id].online > 1){ //MAXIMO NUMERO DE ACESSOS É 2
+         
          printf("Um usuario tentou exceder o numero de acessos.\n");
          send_packet(newsockfd,CMD_QUIT,++sqncnt,4,0,"quit");
          close(newsockfd);
       }
       else{
-      
+         //AUMENTA A QUANTIDADE DE USUARIOS ONLINE
          profile_list[profile_id].online +=1;
          pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
       }
    }
 
+   
    return profile_id;
 
 }
@@ -88,6 +97,8 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
       send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
       return;
    }
+
+   
    //User trying to follow himself
    if(strcmp(follow_name,profile_list[profile_id].name) == 0 ){
       strcpy(payload,"FOLLOW falhou, voce nao pode se seguir.");
@@ -108,19 +119,22 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
 
    }
 
-   //ADD FOLLOWER
+   
+
    num_followers =  profile_list[follow_id].num_followers;
    if(num_followers >= MAX_FOLLOW){
       printf("Account reached max number of followers\n");
       exit(1);
    }
 
+   //ADD FOLLOWER
    profile_list[follow_id].num_followers++;
    profile_list[follow_id].followers[num_followers] =  &profile_list[profile_id];
 
    strcpy(payload,"FOLLOW executou com sucesso.");
    send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload);  
-     
+   
+ 
 
 
 }
@@ -214,20 +228,24 @@ void *handle_client_messages(void *arg) {
             par->flag = 0;
          break;
 
-         case CMD_SEND:
-            // TO-DO MUTEX
-            pthread_mutex_trylock(&mutex);
-            handle_send(notif, message, profile_id, newsockfd);
-            pthread_mutex_unlock(&mutex);
+         case CMD_SEND: 
+            //Two threads cannot alter notifications at the same time
+            pthread_mutex_lock(&notif_mutex);
 
+            handle_send(notif, message, profile_id, newsockfd); 
+
+            pthread_mutex_unlock(&notif_mutex); 
          break;
 
          case CMD_FOLLOW:
+            //Two threads cannot alter the same follower at the same time
+            pthread_mutex_lock(&follow_mutex); 
+
             strcpy(follow_name,message.payload);
-            // TO-DO MUTEX
-            pthread_mutex_trylock(&mutex);
-            handle_follow(follow_name, profile_id, newsockfd);  
-            pthread_mutex_unlock(&mutex);
+            handle_follow(follow_name, profile_id, newsockfd); 
+
+            pthread_mutex_unlock(&follow_mutex);  
+            
 
          break;
 
@@ -308,6 +326,8 @@ void init_barriers(){
 }
 
 
+
+
 int main( int argc, char *argv[] ) {
 
   
@@ -317,6 +337,7 @@ int main( int argc, char *argv[] ) {
    
    init_profiles(profile_list);
    init_barriers();
+  
 
 
    //Create socket
@@ -380,7 +401,7 @@ int main( int argc, char *argv[] ) {
       parameters[i].profile_id = profile_id;
       parameters[i].socket = newsockfd;
       parameters[i].flag = 1;
-      //mutex[i] = PTHREAD_MUTEX_INITIALIZER;
+      
 
       if(pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ){
          printf("Failed to create handle client messages thread");

@@ -62,7 +62,6 @@ void *client_input(void *arg)
         switch(command){
             case CMD_QUIT:
                 quit_signal();
-                exit(1);
                 break;
             case CMD_SEND:
                 // If the message is at max 128 characters long, includes "SEND " and \n
