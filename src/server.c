@@ -87,13 +87,26 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
       send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
       return;
    }
-
+   //User trying to follow himself
    if(strcmp(follow_name,profile_list[profile_id].name) == 0 ){
       strcpy(payload,"FOLLOW falhou, voce nao pode se seguir.");
       send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
       return;
    }
+   
 
+   
+   //User already follows
+   for(int i=0;i<profile_list[follow_id].num_followers;i++){
+      
+      if(strcmp(profile_list[follow_id].followers[i]->name,profile_list[profile_id].name)==0){
+
+         strcpy(payload,"FOLLOW falhou, voce nao pode seguir alguem duas vezes.");
+         send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
+         return;
+      }
+
+   }
 
    //ADD FOLLOWER
    num_followers =  profile_list[follow_id].num_followers;
@@ -107,6 +120,7 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
 
    strcpy(payload,"FOLLOW executou com sucesso.");
    send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload);  
+     
 
 
 }
