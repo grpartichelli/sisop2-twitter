@@ -213,19 +213,19 @@ void *handle_client_messages(void *arg) {
          break;
 
          case CMD_SEND:
-            // TO-DO
-            // ----------------- MUTEX -----------------------------
+            // TO-DO MUTEX
+            pthread_mutex_trylock(&mutex[profile_id]);
             handle_send(notif, message, profile_id, newsockfd);
-            // ----------------- MUTEX -----------------------------
+            pthread_mutex_unlock(&mutex[profile_id]);
 
          break;
 
          case CMD_FOLLOW:
             strcpy(follow_name,message.payload);
-            // TO-DO
-            // ----------------- MUTEX -----------------------------
+            // TO-DO MUTEX
+            pthread_mutex_trylock(&mutex[profile_id]);
             handle_follow(follow_name, profile_id, newsockfd);  
-            // ----------------- MUTEX ----------------------------- 
+            pthread_mutex_unlock(&mutex[profile_id]);
 
          break;
 
@@ -251,6 +251,8 @@ void *handle_client_consumes(void *arg) {
    notification *n;
    char *str_notif; //String correspondent to the notification
  
+   pthread_mutex_lock(&mutex[profile_id]);
+
    while(par->flag){
 
       for(int i=0; i < p->num_pnd_notifs; i++){
@@ -288,6 +290,8 @@ void *handle_client_consumes(void *arg) {
       
       }
    }
+
+   pthread_mutex_unlock(&mutex[profile_id]);
 
 
    
@@ -366,6 +370,7 @@ int main( int argc, char *argv[] ) {
       parameters[i].profile_id = profile_id;
       parameters[i].socket = newsockfd;
       parameters[i].flag = 1;
+      //mutex[i] = PTHREAD_MUTEX_INITIALIZER;
 
       if(pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ){
          printf("Failed to create handle client messages thread");
