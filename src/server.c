@@ -95,7 +95,6 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
    }
    
 
-   
    //User already follows
    for(int i=0;i<profile_list[follow_id].num_followers;i++){
       
@@ -203,15 +202,13 @@ void *handle_client_messages(void *arg) {
 
       switch(message.type)
       {
-         case CMD_QUIT:
-         // TO-DO: QUIT command. profile.online--, send a packet (SRV_MSG), close the socket. 
-            
+         case CMD_QUIT:     
             send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
-            profile_list[profile_id].online -=1;
             
-            close(newsockfd);
-            //close(++newsockfd);
+            profile_list[profile_id].online -=1;
 
+            close(newsockfd);
+          
             par->flag = 0;
          break;
 

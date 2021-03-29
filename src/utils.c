@@ -53,7 +53,7 @@ void receive(int sockfd, packet* message)
 
 int getTime()
 {
-	// TO-DO: convert sth from the "time.h" library into a timestamp
+	
 	time_t now = time(NULL);
 	struct tm *tm_struct = localtime(&now);
 
@@ -63,9 +63,3 @@ int getTime()
 	return hour*100+minute;
 }
 
-char* convertTime(uint16_t time){
-
-	//TO-DO: convert from uint16 time to string
-	char * nothing;
-	return nothing;
-}
