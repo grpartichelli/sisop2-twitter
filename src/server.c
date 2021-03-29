@@ -28,7 +28,7 @@ int sqncnt = 0;
 int sockfd;
 
 pthread_t client_pthread[MAX_CLIENTS*2];
-pthread_mutex_t mutex[MAX_CLIENTS] = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 profile profile_list[MAX_CLIENTS];
 
@@ -217,18 +217,18 @@ void *handle_client_messages(void *arg) {
 
          case CMD_SEND:
             // TO-DO MUTEX
-            pthread_mutex_trylock(&mutex[profile_id]);
+            pthread_mutex_trylock(&mutex);
             handle_send(notif, message, profile_id, newsockfd);
-            pthread_mutex_unlock(&mutex[profile_id]);
+            pthread_mutex_unlock(&mutex);
 
          break;
 
          case CMD_FOLLOW:
             strcpy(follow_name,message.payload);
             // TO-DO MUTEX
-            pthread_mutex_trylock(&mutex[profile_id]);
+            pthread_mutex_trylock(&mutex);
             handle_follow(follow_name, profile_id, newsockfd);  
-            pthread_mutex_unlock(&mutex[profile_id]);
+            pthread_mutex_unlock(&mutex);
 
          break;
 
@@ -253,13 +253,11 @@ void *handle_client_consumes(void *arg) {
    profile *p = &profile_list[profile_id];
    notification *n;
    char *str_notif; //String correspondent to the notification
- 
-   pthread_mutex_lock(&mutex[profile_id]);
 
    while(par->flag){
 
       for(int i=0; i < p->num_pnd_notifs; i++){
-         //TO-DO Mutex?????
+         pthread_mutex_lock(&mutex);
          
          notif_identifier = p->pnd_notifs[i];
          if(notif_identifier.profile_id != -1){ //Notification exists
@@ -285,16 +283,13 @@ void *handle_client_consumes(void *arg) {
                //Delete notification identifier from client
                p->pnd_notifs[i].profile_id = -1;
                p->pnd_notifs[i].notif_id = -1;
+
             }
          }
-
-         
-         //TO-DO Mutex????
-      
+         pthread_mutex_unlock(&mutex);
       }
-   }
 
-   pthread_mutex_unlock(&mutex[profile_id]);
+   }
 
 
    
