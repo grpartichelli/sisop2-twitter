@@ -13,6 +13,7 @@
 #include <signal.h>
 
 #include "utils.c"
+#include "error_handler.c"
 
 void quit_signal();
 void intHandler(int dummy);
@@ -23,11 +24,14 @@ void *client_display(void *arg);
 int sockfd;
 int sqncnt = 0;
 
-// Gerenciador de comunicação: OK?
-// Gerenciador de notificações: TO-DO
-// Gerenciador de interface: ???
 
-void quit_signal(){ //Não sei se devemos manter assim.
+//detecting ctrl+c
+void intHandler(int dummy) {
+    quit_signal();
+}
+
+
+void quit_signal(){ //When we want to quit, send this to the server
     send_packet(sockfd,CMD_QUIT,++sqncnt,0,0,"");
     receive_and_print(sockfd);
     close(sockfd);
@@ -36,10 +40,6 @@ void quit_signal(){ //Não sei se devemos manter assim.
     exit(1);
 }
 
-//detecting ctrl+c
-void intHandler(int dummy) {
-    quit_signal();
-}
 
 //Get client input and send to server
 void *client_input(void *arg) 
@@ -51,18 +51,18 @@ void *client_input(void *arg)
 
     while(1)
     {
-        
+        //GET THE COMMAND
         bzero(in_buffer, BUFFER_SIZE);
-          
         if (!fgets(in_buffer, BUFFER_SIZE, stdin))
             command = CMD_QUIT;
         else
             command = get_command(in_buffer);
 
         switch(command){
-            case CMD_QUIT:
+            case CMD_QUIT:   
                 quit_signal();
                 break;
+
             case CMD_SEND:
                 // If the message is at max 128 characters long, includes "SEND " and \n
                 if (strlen(in_buffer) <= 134) 
@@ -72,17 +72,8 @@ void *client_input(void *arg)
                 break;
             
             case CMD_FOLLOW:
-           
-                if(in_buffer[7]=='@'){
-                    
-                    if(strlen(in_buffer)-8 <=20 && strlen(in_buffer)-8 >=4)
-                        send_packet(sockfd, CMD_FOLLOW, ++sqncnt, strlen(in_buffer)-7, getTime(), in_buffer+7*sizeof(char));             
-                    else
-                        printf("The username must be between 4 and 20 characters long.\n");
-                }
-                else
-                    printf("An @ should be included before the username.\n");
-           
+                //SEND FOLLOW TO SERVER
+                send_packet(sockfd, CMD_FOLLOW, ++sqncnt, strlen(in_buffer)-7, getTime(), in_buffer+7*sizeof(char));             
                 break;
 
             default:
@@ -114,28 +105,27 @@ int get_command(char* buffer)
 
 void *client_display(void *arg) {
 
-   // TO-DO: Login code. profile.online++.
+   
 
    int newsockfd = *(int *) arg;
    int flag = 1;
    packet message;
 
-
    while(flag){
       
-      //READ
+      
       receive(newsockfd, &message);
       switch(message.type)
       {
-         case CMD_QUIT:
+         case CMD_QUIT: //Server asks us to quit if we exceed the number of users
             printf("Numero maximo de acessos excedido.\n");
             close(newsockfd);
             exit(1);
          break;     
-         case CMD_FOLLOW:
+         case CMD_FOLLOW: //Simply print the follow message sent by the server. (If it was sucessfull or not)
             printf("%s\n", message.payload);
          break;   
-         case NOTIF:
+         case NOTIF: //Simply print the notification sent by the server
             printf("%s\n", message.payload);
          break;  
       }
@@ -146,17 +136,9 @@ void *client_display(void *arg) {
 }
 
 void validate_user(char *profile){
-
-    if(!(strlen(profile) <=20 && strlen(profile) >=4)){
-        fprintf(stderr,"The username must be between 4 and 20 characters long.\n");
-        exit(1);
-    }
-
-    if(profile[0] != '@'){
-        fprintf(stderr,"The username must start with @ \n");
-        exit(1);
-    }
-
+    //Test if username is the correct size and has a @
+    signal_error(!(strlen(profile) <=20 && strlen(profile) >=4),"The username must be between 4 and 20 characters long.\n"); 
+    signal_error((profile[0] != '@'),"The username must start with @ \n"); 
 }
 
 void load_user(char *profile){
@@ -178,51 +160,38 @@ int main(int argc, char *argv[])
     int port;
 
     //Check if correct input
-    if (argc < 4) {
-		fprintf(stderr,"Usage: ./app_cliente <profile> <server_address> <port>\n");
-		exit(1);
-    }
-
-	
-
+    signal_error((argc < 4),"Usage: ./app_cliente <profile> <server_address> <port>\n");
+    
     //Check for correct HOST
     server = gethostbyname(argv[2]);
-    if (server == NULL) {
-        fprintf(stderr,"ERROR, no such host\n");
-        exit(1);
-    }
-    /////////////////////////////////
-
-    ////////////////////////////////
-    //TO-DO Check for correct PORT
+    signal_error((server == NULL), "ERROR, no such host\n");
+   
+    //GET PORT
     port = atoi(argv[3]);
-    //////////////////////////////
-
-
-    //TO-DO Check for correct USER
+   
+    //GET USER
     strcpy(profile,argv[1]);
     validate_user(profile);
-    //////////////////////////////
-
-
-    // OPENING AND CONNECTING TO SOCKET
-    printf("Profile: %s , Port: %d\n",profile,port);
-
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) 
-        printf("ERROR opening socket\n");
     
+    //DISPLAY DETAILS
+    printf("Profile: %s , Port: %d\n",profile,port);
+    printf("Use the commands FOLLOW and SEND to comunicate with the server.\n");
+
+    //OPEN SOCKET
+    signal_error(((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
+       
+    //COONECT SOCKET
 	serv_addr.sin_family = AF_INET;     
 	serv_addr.sin_port = htons(port);    
 	serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
 	bzero(&(serv_addr.sin_zero), 8);     
-    
-	if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) {
-        printf("ERROR connecting\n");
-        exit(1);
-    }
-    
+   
+    signal_error((connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
+	
+    //SEND USER INITIALIZATION TO SERVER
     load_user(profile);
 
+    //CREATE THREADS FOR USER COMMAND INPUT AND DISPLAY NOTIFICATIONS
     pthread_create(&thr_client_input, NULL, client_input, &sockfd);
     pthread_create(&thr_client_display, NULL, client_display, &sockfd);
     

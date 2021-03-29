@@ -35,6 +35,7 @@ pthread_t client_pthread[MAX_CLIENTS*2];
 //MUTEX
 pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t follow_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 //CONSUMER BARRIER
 pthread_barrier_t  barriers[MAX_CLIENTS]; 
 
@@ -288,10 +289,11 @@ void *handle_client_consumes(void *arg) {
             send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, str_notif);
             free(str_notif);
              
-
+            //BARRIER FOR CONCURRENT CLIENTS
             pthread_barrier_wait (&barriers[profile_id]);
 
 
+            pthread_mutex_lock(&follow_mutex); //Not allowing notifications to be changed at the same time
             if(par->flag){
                //Subtract number of pending readers
                n->pending--;
@@ -306,6 +308,7 @@ void *handle_client_consumes(void *arg) {
                p->pnd_notifs[i].notif_id = -1;
 
             }
+            pthread_mutex_unlock(&follow_mutex);
            
          }
          
