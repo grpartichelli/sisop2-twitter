@@ -11,10 +11,10 @@
 #include <pthread.h>
 #include <signal.h>
 
-#include "utils.c"
-#include "profile.c"
+#include "communication.c"
 #include "notification.c"
 #include "error_handler.c"
+#include "file_handler.c"
 
 #define PORT 4000
 
@@ -44,6 +44,7 @@ profile profile_list[MAX_CLIENTS];
 //detecting ctrl+c
 void intHandler(int dummy) {
    close(sockfd);   
+   save_profiles(profile_list);
    printf("\nServer ended successfully\n");
    exit(0);
 }
@@ -307,6 +308,7 @@ int main( int argc, char *argv[] ) {
    
    //INIT STRUCTURES
    init_profiles(profile_list);
+   read_profiles(profile_list);
    init_barriers();
   
 

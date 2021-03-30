@@ -1,5 +1,5 @@
 #include "../include/profile.h"
-#include "../include/utils.h"
+#include "../include/communication.h"
 
 //Add profile if it doesn't exist, else add to online 
 int handle_profile(profile *profile_list, char *username, int newsockfd, int sqncnt){

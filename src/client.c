@@ -12,7 +12,7 @@
 #include <netdb.h> 
 #include <signal.h>
 
-#include "utils.c"
+#include "communication.c"
 #include "error_handler.c"
 
 void quit_signal();
