@@ -43,8 +43,16 @@ profile profile_list[MAX_CLIENTS];
 
 //detecting ctrl+c
 void intHandler(int dummy) {
+
+   for(int i=0;i<)
+
    close(sockfd);   
    save_profiles(profile_list);
+   //SEND QUIT TO ALL ONLINE USERS
+   for(int i=0;i<MAX_CLIENTS;i++){
+
+   }
+
    printf("\nServer ended successfully\n");
    exit(0);
 }
@@ -355,22 +363,25 @@ int main( int argc, char *argv[] ) {
          
       //Create or update profile
       profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt);
-      //Update barrier in case number of online user changed
-      pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
       free(message.payload);
 
-      //LOAD PARAMETERS FOR THREADS
-      parameters[i].profile_id = profile_id;
-      parameters[i].socket = newsockfd;
-      parameters[i].flag = 1;
+      if(profile_id != -1){
+         //Update barrier in case number of online user changed
+         pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
+         
+
+         //LOAD PARAMETERS FOR THREADS
+         parameters[i].profile_id = profile_id;
+         parameters[i].socket = newsockfd;
+         parameters[i].flag = 1;
+         
+         //One thread consumes notifications, the other reads user input
+         print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
+         print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
+         i+=2;
+      }
       
-      //One thread consumes notifications, the other reads user input
-      print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
-      print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
       
-     
-      
-      i+=2;
    }
 	  
    close(sockfd);

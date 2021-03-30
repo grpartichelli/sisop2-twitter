@@ -23,6 +23,7 @@ int handle_profile(profile *profile_list, char *username, int newsockfd, int sqn
          printf("Um usuario tentou exceder o numero de acessos.\n");
          send_packet(newsockfd,CMD_QUIT,sqncnt,4,0,"quit");
          close(newsockfd);
+         return -1;
       }
       else{
          //AUMENTA A QUANTIDADE DE USUARIOS ONLINE

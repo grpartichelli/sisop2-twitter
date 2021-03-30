@@ -18,6 +18,7 @@
 #define	INIT_USER 6 
 
 
+
 #define BUFFER_SIZE 256
 
 typedef struct packet{

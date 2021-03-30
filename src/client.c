@@ -128,6 +128,7 @@ void *client_display(void *arg) {
          case NOTIF: //Simply print the notification sent by the server
             printf("%s\n", message.payload);
          break;  
+    
       }
       
       free(message.payload);
