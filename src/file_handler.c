@@ -1,6 +1,6 @@
 #include "profile.c"
 
-int save_profiles(profile profile_list[MAX_CLIENTS])
+void save_profiles(profile profile_list[MAX_CLIENTS])
 {
 	FILE *profiles, *followers;
 	int i, j;
@@ -29,7 +29,7 @@ int save_profiles(profile profile_list[MAX_CLIENTS])
 	
 }
 
-int read_profiles(profile* profile_list)
+void read_profiles(profile* profile_list)
 {
 	FILE *profiles, *followers;
 	int num_profiles, i, j, length, follow_id;
