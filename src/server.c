@@ -190,7 +190,7 @@ void *handle_client_messages(void *arg) {
             pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
 
             close(newsockfd);
-          
+            
             par->flag = 0;
          break;
 
@@ -263,16 +263,20 @@ void *handle_client_consumes(void *arg) {
             pthread_mutex_lock(&send_mutex); 
             
             if(par->flag){
-               //Subtract number of pending readers
-               n->pending--;
-               if(n->pending == 0){ 
-                  //Delete notification from sender
-                  n = NULL;
-               }
                
-               //Delete notification identifier from client
-               p->pnd_notifs[i].profile_id = -1;
-               p->pnd_notifs[i].notif_id = -1;
+               if(p->pnd_notifs[i].profile_id != -1){ //Test if it hasnt been deleted (multiple of the same clients case)
+                  
+                  n->pending--; //Subtract number of pending readers    
+                  if(n->pending == 0){ 
+                     //Delete notification from sender
+                     n = NULL;
+                  }
+
+                  //Delete notification identifier from client
+                  p->pnd_notifs[i].profile_id = -1;
+                  p->pnd_notifs[i].notif_id = -1;
+
+               }
             }
             //END MUTEX
             pthread_mutex_unlock(&send_mutex);

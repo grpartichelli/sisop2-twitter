@@ -12,14 +12,14 @@ int save_profiles(profile profile_list[MAX_CLIENTS])
 	while(profile_list[i].name!="")
 	{
 		if(strlen(profile_list[i].name)!=0){
-			printf("%i %s %i ", (int)strlen(profile_list[i].name), profile_list[i].name, profile_list[i].num_followers);
+			//printf("%i %s %i ", (int)strlen(profile_list[i].name), profile_list[i].name, profile_list[i].num_followers);
 			fprintf(profiles, "%i %s %i ", (int)strlen(profile_list[i].name), profile_list[i].name, profile_list[i].num_followers);
 			for (j = 0; j<profile_list[i].num_followers; j++)
 			{
 				fprintf(followers, "%i %s ", (int)strlen(profile_list[i].followers[j]->name), profile_list[i].followers[j]->name);
-				printf("%i %s ", (int)strlen(profile_list[i].followers[j]->name), profile_list[i].followers[j]->name);
+				//printf("%i %s ", (int)strlen(profile_list[i].followers[j]->name), profile_list[i].followers[j]->name);
 			}
-			printf("\n");
+			//printf("\n");
 		}
 		i++;
 	}
@@ -36,33 +36,34 @@ int read_profiles(profile* profile_list)
 	num_profiles = 0;
 	char* aux;
 
-	profiles = fopen("profiles.txt", "r");
-	followers = fopen("followers.txt", "r");
+	if((profiles = fopen("profiles.txt", "r")) &&  (followers = fopen("followers.txt", "r"))){
 	
-	while(!feof(profiles))
-	{
-		fscanf(profiles, "%i ", &length);
-		profile_list[num_profiles].name = malloc((length+1)*sizeof(char));
-		fscanf(profiles, "%s %i ", profile_list[num_profiles].name, &(profile_list[num_profiles].num_followers));
-		profile_list[num_profiles].name[length]='\0';
-		num_profiles++;
-	}
-
-
-	for (i = 0; i<num_profiles; i++)
-	{
-		for (j = 0; j<profile_list[i].num_followers; j++)
+		
+		while(!feof(profiles))
 		{
-			fscanf(followers, "%i ", &length);
-			aux = malloc((length+1)*sizeof(char));
-			fscanf(followers, "%s ", aux);
-			aux[length]='\0';
-			follow_id = get_profile_id(profile_list,aux);
-			profile_list[i].followers[j] = &(profile_list[follow_id]);
-			free(aux);
+			fscanf(profiles, "%i ", &length);
+			profile_list[num_profiles].name = malloc((length+1)*sizeof(char));
+			fscanf(profiles, "%s %i ", profile_list[num_profiles].name, &(profile_list[num_profiles].num_followers));
+			profile_list[num_profiles].name[length]='\0';
+			num_profiles++;
 		}
-	}
 
-	fclose(profiles);
-	fclose(followers);
+
+		for (i = 0; i<num_profiles; i++)
+		{
+			for (j = 0; j<profile_list[i].num_followers; j++)
+			{
+				fscanf(followers, "%i ", &length);
+				aux = malloc((length+1)*sizeof(char));
+				fscanf(followers, "%s ", aux);
+				aux[length]='\0';
+				follow_id = get_profile_id(profile_list,aux);
+				profile_list[i].followers[j] = &(profile_list[follow_id]);
+				free(aux);
+			}
+		}
+
+		fclose(profiles);
+		fclose(followers);
+	}
 }

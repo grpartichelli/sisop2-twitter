@@ -1,0 +1,1 @@
+5 @doze 2 4 @dez 2 5 @onze 2 1  0 5 @DOZE 0 
