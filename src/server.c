@@ -43,16 +43,8 @@ profile profile_list[MAX_CLIENTS];
 
 //detecting ctrl+c
 void intHandler(int dummy) {
-
-   for(int i=0;i<)
-
    close(sockfd);   
    save_profiles(profile_list);
-   //SEND QUIT TO ALL ONLINE USERS
-   for(int i=0;i<MAX_CLIENTS;i++){
-
-   }
-
    printf("\nServer ended successfully\n");
    exit(0);
 }
@@ -352,12 +344,9 @@ int main( int argc, char *argv[] ) {
       signal(SIGINT, intHandler); //detect ctrl+c
       //ACCEPT
       newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
-      if (newsockfd < 0) {
-         printf("ERROR on accept");
-         exit(1);
-      }
+      print_error((newsockfd < 0),"ERROR on accept");
 
-
+      //Receive message
       receive(newsockfd, &message);
       print_error((message.type != INIT_USER),"Error, user not initialized.\n");
          
