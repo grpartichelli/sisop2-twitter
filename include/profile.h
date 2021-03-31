@@ -21,7 +21,7 @@ typedef struct profile{
  } profile;
 
 
-
+int handle_profile(profile *profile_list, char *username, int newsockfd, int sqncnt);
 void init_profiles(profile* profile_list); //Loads all the starting profiles
 int insert_profile(profile* profile_list, char* username); //Inserts a new profile
 int get_profile_id(profile* profile_list, char *username); //Gets a profile bid by name
