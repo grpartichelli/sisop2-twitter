@@ -119,7 +119,7 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
 }
 
 void handle_send(notification *notif, packet message, int profile_id, int newsockfd){
-   char payload[100]; 
+
    
    profile *p;
    int num_pnd_notifs;
@@ -166,6 +166,7 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
    }
 
    //SEND TO USER SEND WAS SUCCESSFULL
+   char payload[100];
    strcpy(payload,"SEND executou com sucesso.");
    send_packet(newsockfd,CMD_SEND,++sqncnt,strlen(payload)+1,0,payload);  
 
@@ -374,34 +375,36 @@ int main( int argc, char *argv[] ) {
 
    while(1){
       signal(SIGINT, intHandler); //detect ctrl+c
-      //ACCEPT
-      newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
-      print_error((newsockfd < 0),"ERROR on accept");
 
-      //Receive message
-      receive(newsockfd, &message);
-      print_error((message.type != INIT_USER),"Error, user not initialized.\n");
-              
-      //Create or update profile
-      profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
-      free(message.payload);
+      if(this_rm.is_primary){
+         //ACCEPT
+         newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
+         print_error((newsockfd < 0),"ERROR on accept");
 
-      if(profile_id != -1){
-         //Update barrier in case number of online user changed
-         pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
-         
+         //Receive message
+         receive(newsockfd, &message);
+         print_error((message.type != INIT_USER),"Error, user not initialized.\n");
+                 
+         //Create or update profile
+         profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
+         free(message.payload);
 
-         //LOAD PARAMETERS FOR THREADS
-         parameters[i].profile_id = profile_id;
-         parameters[i].socket = newsockfd;
-         parameters[i].flag = 1;
-         
-         //One thread consumes notifications, the other reads user input
-         print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
-         print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
-         i+=2;
+         if(profile_id != -1){
+            //Update barrier in case number of online user changed
+            pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
+            
+
+            //LOAD PARAMETERS FOR THREADS
+            parameters[i].profile_id = profile_id;
+            parameters[i].socket = newsockfd;
+            parameters[i].flag = 1;
+            
+            //One thread consumes notifications, the other reads user input
+            print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
+            print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
+            i+=2;
+         }
       }
-      
       
    }
 	  

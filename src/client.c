@@ -14,6 +14,7 @@
 
 #include "communication.c"
 #include "error_handler.c"
+#include "frontend.c"
 
 void quit_signal();
 void intHandler(int dummy);
@@ -156,14 +157,15 @@ void load_user(char *profile){
 
 int main(int argc, char *argv[])
 {
-    pthread_t thr_client_input, thr_client_display;
+    pthread_t thr_client_input, thr_client_display,thr_frontend_run;
 
     int  n;
     struct sockaddr_in serv_addr;
     struct hostent *server;
     
     char profile[20];
-    int port;
+    int primary_port;
+    int frontend_port;
 
     //Check if correct input
     print_error((argc < 4),"Usage: ./app_cliente <profile> <server_address> <port>\n");
@@ -172,28 +174,36 @@ int main(int argc, char *argv[])
     server = gethostbyname(argv[2]);
     print_error((server == NULL), "ERROR, no such host\n");
    
-    //GET PORT
-    port = atoi(argv[3]);
-   
+    //GET STARTING PRIMARY RM PORT
+    primary_port = atoi(argv[3]);
+    
+    
     //GET USER
     strcpy(profile,argv[1]);
     validate_user(profile);
     
+
     //DISPLAY DETAILS
-    printf("Profile: %s , Port: %d\n",profile,port);
+    printf("Profile: %s\n",profile);
     printf("Use the commands FOLLOW and SEND to comunicate with the server.\n");
 
     //OPEN SOCKET
     print_error(((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
        
-    //CONNECT SOCKET
+
+    //RUN THE FRONTEND
+    pthread_create(&thr_frontend_run, NULL, frontend_run, server);
+    frontend_port = get_frontend_port();
+
+    //CONNECT TO FRONT END SOCKET
 	serv_addr.sin_family = AF_INET;     
-	serv_addr.sin_port = htons(port);    
+	serv_addr.sin_port = htons(frontend_port);    
 	serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
 	bzero(&(serv_addr.sin_zero), 8);     
-   
+    
     print_error((connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
 	
+    
     //SEND USER INITIALIZATION TO SERVER
     load_user(profile);
 
@@ -203,7 +213,9 @@ int main(int argc, char *argv[])
     
     pthread_join(thr_client_input, NULL);    
     pthread_join(thr_client_display, NULL);  
-
+    
+    
+    pthread_join(thr_frontend_run, NULL);  
 	close(sockfd);
     return 0;
 }
