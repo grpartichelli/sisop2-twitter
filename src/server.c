@@ -34,7 +34,7 @@ pthread_t client_pthread[MAX_CLIENTS*2]; //Each client has two threads, one for 
 //MUTEX
 pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER; //Making sure sends can't alter notifications at the same time
 pthread_mutex_t follow_mutex = PTHREAD_MUTEX_INITIALIZER;//Making sure follow can't alter followers at the same time
-
+pthread_mutex_t online_mutex = PTHREAD_MUTEX_INITIALIZER;//Not subtracting or adding a profile online info at the same time
 //CONSUMER BARRIER
 pthread_barrier_t  barriers[MAX_CLIENTS]; 
 
@@ -186,7 +186,10 @@ void *handle_client_messages(void *arg) {
          case CMD_QUIT:     
             send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
             
+            pthread_mutex_lock(&online_mutex);
             profile_list[profile_id].online -=1;
+            pthread_mutex_unlock(&online_mutex); 
+
             pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
 
             close(newsockfd);
@@ -349,9 +352,9 @@ int main( int argc, char *argv[] ) {
       //Receive message
       receive(newsockfd, &message);
       print_error((message.type != INIT_USER),"Error, user not initialized.\n");
-         
+              
       //Create or update profile
-      profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt);
+      profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
       free(message.payload);
 
       if(profile_id != -1){

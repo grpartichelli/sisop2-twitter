@@ -2,7 +2,7 @@
 #include "../include/communication.h"
 
 //Add profile if it doesn't exist, else add to online 
-int handle_profile(profile *profile_list, char *username, int newsockfd, int sqncnt){
+int handle_profile(profile *profile_list, char *username, int newsockfd, int sqncnt, pthread_mutex_t online_mutex){
 
   
    int profile_id = get_profile_id(profile_list,username);
@@ -10,7 +10,7 @@ int handle_profile(profile *profile_list, char *username, int newsockfd, int sqn
    if(profile_id == -1){ //CASO NÃO EXISTA 
 
       //INSERE
-      profile_id = insert_profile(profile_list, username);
+      profile_id = insert_profile(profile_list, username,online_mutex);
 
       if(profile_id == -1){
          printf("MAX NUMBER OF PROFILES REACHED\n");
@@ -27,7 +27,10 @@ int handle_profile(profile *profile_list, char *username, int newsockfd, int sqn
       }
       else{
          //AUMENTA A QUANTIDADE DE USUARIOS ONLINE
-         profile_list[profile_id].online +=1;
+          pthread_mutex_lock(&online_mutex);
+          profile_list[profile_id].online +=1;
+          pthread_mutex_unlock(&online_mutex);
+         
       }
    }
 
@@ -53,14 +56,18 @@ void print_profiles(profile* profile_list){
 	}
 }
 
-int insert_profile(profile* profile_list, char* username){
+int insert_profile(profile* profile_list, char* username,pthread_mutex_t online_mutex){
 
     for(int i =0; i<MAX_CLIENTS; i++){
         if(profile_list[i].name == ""){
         	
         	profile_list[i].name = (char*)malloc(strlen(username)+1);
             strcpy(profile_list[i].name,username);
+
+            pthread_mutex_lock(&online_mutex);
             profile_list[i].online = 1;
+            pthread_mutex_unlock(&online_mutex);
+
             profile_list[i].num_followers = 0;
             profile_list[i].num_snd_notifs = 0;
             profile_list[i].num_pnd_notifs = 0;
