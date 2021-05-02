@@ -16,7 +16,12 @@
 #include "error_handler.c"
 #include "file_handler.c"
 
-#define PORT 4000
+
+//configuration of this server
+int port = 4000;
+int id;
+
+
 
 //Struct used for creating threads
 typedef struct thread_parameters{ 
@@ -44,7 +49,7 @@ profile profile_list[MAX_CLIENTS];
 //detecting ctrl+c
 void intHandler(int dummy) {
    close(sockfd);   
-   save_profiles(profile_list);
+   save_profiles(profile_list,id);
    printf("\nServer ended successfully\n");
    exit(0);
 }
@@ -186,14 +191,16 @@ void *handle_client_messages(void *arg) {
          case CMD_QUIT:     
             send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
             
+            
             pthread_mutex_lock(&online_mutex);
             profile_list[profile_id].online -=1;
             pthread_mutex_unlock(&online_mutex); 
 
+            
             pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
 
+           
             close(newsockfd);
-            
             par->flag = 0;
          break;
 
@@ -201,7 +208,11 @@ void *handle_client_messages(void *arg) {
             //Two threads cannot alter notifications at the same time
             pthread_mutex_lock(&send_mutex);
 
+
+
             handle_send(notif, message, profile_id, newsockfd); 
+
+
 
             pthread_mutex_unlock(&send_mutex); 
          break;
@@ -210,12 +221,14 @@ void *handle_client_messages(void *arg) {
             //Two threads cannot alter the same follower at the same time
             pthread_mutex_lock(&follow_mutex); 
 
+
+
             strcpy(follow_name,message.payload);
             handle_follow(follow_name, profile_id, newsockfd); 
 
-            pthread_mutex_unlock(&follow_mutex);  
-            
 
+
+            pthread_mutex_unlock(&follow_mutex);  
          break;
 
          
@@ -303,8 +316,13 @@ void init_barriers(){
 
 
 
-
 int main( int argc, char *argv[] ) {
+
+   //Check if correct input
+   print_error((argc < 3),"Usage: ./server <config_file.txt> <id>\n");
+   id = atoi(argv[2]);
+
+   printf("ID: %d\n", id);
 
    int i=0,profile_id;
    int newsockfd, portno, clilen;
@@ -315,7 +333,7 @@ int main( int argc, char *argv[] ) {
    
    //INIT STRUCTURES
    init_profiles(profile_list);
-   read_profiles(profile_list);
+   read_profiles(profile_list,id);
    init_barriers();
   
 
@@ -330,7 +348,7 @@ int main( int argc, char *argv[] ) {
    bzero((char *) &serv_addr, sizeof(serv_addr)); 
    serv_addr.sin_family = AF_INET;
    serv_addr.sin_addr.s_addr = INADDR_ANY;
-   serv_addr.sin_port = htons(PORT);
+   serv_addr.sin_port = htons(port);
 
    //BIND TO HOST
    print_error((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1),"ERROR on setsockopt\n"); 
