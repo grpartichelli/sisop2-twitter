@@ -125,6 +125,11 @@ void *client_display(void *arg) {
          case CMD_FOLLOW: //Simply print the follow message sent by the server. (If it was sucessfull or not)
             printf("%s\n", message.payload);
          break;   
+
+         case CMD_SEND: //Simply print if the SEND was successfull
+            printf("%s\n", message.payload);
+         break; 
+
          case NOTIF: //Simply print the notification sent by the server
             printf("%s\n", message.payload);
          break;  
@@ -181,7 +186,7 @@ int main(int argc, char *argv[])
     //OPEN SOCKET
     print_error(((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
        
-    //COONECT SOCKET
+    //CONNECT SOCKET
 	serv_addr.sin_family = AF_INET;     
 	serv_addr.sin_port = htons(port);    
 	serv_addr.sin_addr = *((struct in_addr *)server->h_addr);

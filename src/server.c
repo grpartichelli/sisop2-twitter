@@ -119,7 +119,7 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
 }
 
 void handle_send(notification *notif, packet message, int profile_id, int newsockfd){
-
+   char payload[100]; 
    
    profile *p;
    int num_pnd_notifs;
@@ -164,6 +164,10 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
       p->pnd_notifs[num_pnd_notifs].profile_id= profile_id;
    
    }
+
+   //SEND TO USER SEND WAS SUCCESSFULL
+   strcpy(payload,"SEND executou com sucesso.");
+   send_packet(newsockfd,CMD_SEND,++sqncnt,strlen(payload)+1,0,payload);  
 
 
 
@@ -329,7 +333,7 @@ int main( int argc, char *argv[] ) {
    read_config_file(argv[1], atoi(argv[2]), &this_rm, &primary_rm, rm_list, &rm_list_size);
    printf("ID: %d, PORT: %d ", this_rm.id, this_rm.port);
    if(this_rm.is_primary){printf("TYPE: PRIMARY\n");} else{printf("TYPE: BACKUP\n");}
-   
+
 
    int i=0,profile_id;
    int newsockfd, portno, clilen;
