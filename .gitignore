@@ -31,5 +31,7 @@
 *.out
 *.app
 
+*.txt
+
 app_cliente
 server

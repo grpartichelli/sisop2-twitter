@@ -15,12 +15,16 @@
 #include "notification.c"
 #include "error_handler.c"
 #include "file_handler.c"
+#include "rm.c"
 
 
-//configuration of this server
-int port = 4000;
-int id;
-
+//configuration of this RM
+rm this_rm;
+//configuration of primary RM
+rm primary_rm;
+//configuration of other RM
+rm rm_list[MAX_RMS];
+int rm_list_size;
 
 
 //Struct used for creating threads
@@ -49,7 +53,7 @@ profile profile_list[MAX_CLIENTS];
 //detecting ctrl+c
 void intHandler(int dummy) {
    close(sockfd);   
-   save_profiles(profile_list,id);
+   save_profiles(profile_list,this_rm.id);
    printf("\nServer ended successfully\n");
    exit(0);
 }
@@ -320,9 +324,12 @@ int main( int argc, char *argv[] ) {
 
    //Check if correct input
    print_error((argc < 3),"Usage: ./server <config_file.txt> <id>\n");
-   id = atoi(argv[2]);
-
-   printf("ID: %d\n", id);
+  
+   //Read RM scenario config
+   read_config_file(argv[1], atoi(argv[2]), &this_rm, &primary_rm, rm_list, &rm_list_size);
+   printf("ID: %d, PORT: %d ", this_rm.id, this_rm.port);
+   if(this_rm.is_primary){printf("TYPE: PRIMARY\n");} else{printf("TYPE: BACKUP\n");}
+   
 
    int i=0,profile_id;
    int newsockfd, portno, clilen;
@@ -333,7 +340,7 @@ int main( int argc, char *argv[] ) {
    
    //INIT STRUCTURES
    init_profiles(profile_list);
-   read_profiles(profile_list,id);
+   read_profiles(profile_list,this_rm.id);
    init_barriers();
   
 
@@ -348,7 +355,7 @@ int main( int argc, char *argv[] ) {
    bzero((char *) &serv_addr, sizeof(serv_addr)); 
    serv_addr.sin_family = AF_INET;
    serv_addr.sin_addr.s_addr = INADDR_ANY;
-   serv_addr.sin_port = htons(port);
+   serv_addr.sin_port = htons(this_rm.port);
 
    //BIND TO HOST
    print_error((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1),"ERROR on setsockopt\n"); 

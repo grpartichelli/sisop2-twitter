@@ -1,4 +1,5 @@
 #include "profile.c"
+#include "rm.c"
 
 void save_profiles(profile profile_list[MAX_CLIENTS], int id)
 {
@@ -83,4 +84,90 @@ void read_profiles(profile* profile_list, int id)
 		fclose(profiles);
 		fclose(followers);
 	}
+}
+
+void read_config_file(char *config_file_name, int id, rm *this_rm, rm* primary_rm, rm *rm_list, int *rm_list_size){
+	int flagThis=0,flagPrimary=0;
+	char * line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    int count = 0;
+    int currentId,currentPort,currentIsPrimary;
+
+    FILE *config = fopen(config_file_name, "r");
+    if (config == NULL){
+    	printf("Failed to open config file\n");
+        exit(1);
+    }
+    int countOthers = 0;
+    while ((read = getline(&line, &len, config)) != -1) {
+
+
+       	char * divided;
+        divided = strtok (line," \n");
+        count = 0;
+  		while (divided != NULL)
+  		{
+    		
+    		atoi(divided);
+    		if(count==0)
+    			currentId = atoi(divided);
+    		
+    		if(count==1)
+    			currentPort = atoi(divided);
+    		
+    		if(count==2)
+    			currentIsPrimary = atoi(divided);
+
+    		
+
+    		divided = strtok (NULL, " \n");
+    		if(count > 2){
+    			printf("error reading config file");
+    			exit(1);
+    		}
+    		count++;
+  		}
+
+  		if(currentIsPrimary){
+  			primary_rm->is_primary = currentIsPrimary;
+  			primary_rm->port = currentPort;
+  			primary_rm->id = currentId;
+  			flagPrimary = 1;
+  		}
+
+  		if(currentId == id){
+  			this_rm->is_primary = currentIsPrimary;
+  			this_rm->port = currentPort;
+  			this_rm->id = currentId;
+  			flagThis = 1;
+  		}
+
+  		if(currentId != id && !currentIsPrimary){
+  			rm_list[countOthers].is_primary = currentIsPrimary;
+  			rm_list[countOthers].port = currentPort;
+  			rm_list[countOthers].id = currentId;
+  			countOthers++;
+  		}	
+   
+
+
+    }
+
+    fclose(config);
+    if (line)
+        free(line);
+
+    if(!flagThis){
+    	printf("This RM id is not on the config.\n");
+    	exit(1);
+    }
+
+    if(!flagPrimary){
+    	printf("This config has no primary RM.\n");
+    	exit(1);
+    }
+
+    *rm_list_size = countOthers;
+
 }
