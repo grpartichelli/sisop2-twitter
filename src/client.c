@@ -26,6 +26,7 @@ int sockfd;
 int sqncnt = 0;
 
 
+
 //detecting ctrl+c
 void intHandler(int dummy) {
     quit_signal();
@@ -189,10 +190,13 @@ int main(int argc, char *argv[])
 
     //OPEN SOCKET
     print_error(((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
-       
-
+    
     //RUN THE FRONTEND
-    pthread_create(&thr_frontend_run, NULL, frontend_run, server);
+    struct frontend_params params;
+    strcpy(params.host,argv[2]);
+    params.primary_port = primary_port;
+    
+    pthread_create(&thr_frontend_run, NULL, frontend_run, &params);
     frontend_port = get_frontend_port();
 
     //CONNECT TO FRONT END SOCKET

@@ -11,10 +11,16 @@
 #include <netdb.h> 
 #include <signal.h>
 
-int port = -1;
+#include "../include/frontend.h"
+
+
+int frontend_port = -1;
+int primary_server_port = - 1;
 void *frontend_run(void *arg){
 
-	struct hostent *server =   (struct hostent *) arg;
+	struct frontend_params *params = (struct frontend_params *) arg;
+	struct hostent *server =  gethostbyname(params->host);
+    primary_server_port = params->primary_port;
 
 	struct sockaddr_in serv_addr,cli_addr;;
     int sockfd,yes=1, newsockfd,clilen,found_port=0;
@@ -49,7 +55,7 @@ void *frontend_run(void *arg){
 
 	}
 	
-	port = aux_port;
+	frontend_port = aux_port;
 
 
 	
@@ -84,10 +90,10 @@ void *frontend_run(void *arg){
 int get_frontend_port(){
 
 	//frontend might not have found the port yet, waiting for it to find
-	while(port == -1);
+	while(frontend_port == -1);
 
-	printf("%d\n",port);
-	return port;
+	printf("%d\n",frontend_port);
+	return frontend_port;
     
 }
  
