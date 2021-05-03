@@ -19,6 +19,7 @@ void *primary_server_communication(void *arg);
 int frontend_port = -1;
 int primary_server_port = - 1;
 int frontend_primary_socket;
+int client_frontend_socket;
 
 void *frontend_run(void *arg){
 
@@ -29,7 +30,7 @@ void *frontend_run(void *arg){
     primary_server_port = params->primary_port;
 
 	struct sockaddr_in serv_addr,cli_addr;;
-    int sockfd,yes=1, client_frontend_socket,clilen,found_port=0;
+    int sockfd,yes=1,clilen,found_port=0;
 	int aux_port = 4999;//Default port
     
     //CREATE SOCKET
@@ -72,22 +73,8 @@ void *frontend_run(void *arg){
 
 
 
-
-
-  
-    pthread_create(&thr_primary_server_communication, NULL, primary_server_communication, &client_frontend_socket);
-    pthread_join(thr_primary_server_communication,NULL);
-
-}
-
-//Send the messages from the client to the server
-void *primary_server_communication(void *arg){
-	int client_frontend_socket = *(int *) arg;
-	
-
-
-	//GET FRONTEND_PRIMARY SOCKET
-	struct sockaddr_in serv_addr,cli_addr;;
+    ////////////////////////////////////////////////////////////////////////////////////
+    //GET FRONTEND_PRIMARY SOCKET
 	print_error(((frontend_primary_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
     //CONNECT TO FRONTEND_PRIMARY SOCKET
 	serv_addr.sin_family = AF_INET;     
@@ -96,15 +83,27 @@ void *primary_server_communication(void *arg){
 	bzero(&(serv_addr.sin_zero), 8);     
    
     print_error((connect(frontend_primary_socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
+	////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+  
+    pthread_create(&thr_primary_server_communication, NULL, primary_server_communication,NULL);
+    pthread_join(thr_primary_server_communication,NULL);
+
+}
+
+//Send the messages from the client to the server
+void *primary_server_communication(void *arg){
 	
-
-
+	
 	//Receive message
     packet message;
     while(1){
 
     	
-   
     	receive(client_frontend_socket, &message);
 
     	if(message.type == CMD_QUIT){
@@ -114,7 +113,6 @@ void *primary_server_communication(void *arg){
     	send_packet(frontend_primary_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
     	
     	
-
 
     	printf("%s\n", message.payload);
 
