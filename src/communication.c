@@ -18,6 +18,7 @@ void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pa
 	write(sockfd,payload,strlen(payload));
 }
 
+
 void receive_and_print(int sockfd)
 {
 	packet message;
