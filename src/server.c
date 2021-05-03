@@ -383,8 +383,8 @@ int main( int argc, char *argv[] ) {
 
          //Receive message
          receive(newsockfd, &message);
-         printf("%s\n", message.payload);
          print_error((message.type != INIT_USER),"Error, user not initialized.\n");
+         printf("I GOT HERE :)\n");
                  
          //Create or update profile
          profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);

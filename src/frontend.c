@@ -18,7 +18,7 @@ void *primary_server_communication(void *arg);
 
 int frontend_port = -1;
 int primary_server_port = - 1;
-
+int frontend_primary_socket;
 
 void *frontend_run(void *arg){
 
@@ -83,7 +83,7 @@ void *frontend_run(void *arg){
 //Send the messages from the client to the server
 void *primary_server_communication(void *arg){
 	int client_frontend_socket = *(int *) arg;
-	int frontend_primary_socket;
+	
 
 
 	//GET FRONTEND_PRIMARY SOCKET
@@ -95,7 +95,7 @@ void *primary_server_communication(void *arg){
 	serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
 	bzero(&(serv_addr.sin_zero), 8);     
    
-    //print_error((connect(frontend_primary_socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
+    print_error((connect(frontend_primary_socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
 	
 
 
@@ -106,14 +106,14 @@ void *primary_server_communication(void *arg){
     	
    
     	receive(client_frontend_socket, &message);
-    	
-    	
+
     	if(message.type == CMD_QUIT){
     		exit(1);
 	    }
-
-	    //send_packet(frontend_primary_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
-    	//send_packet(frontend_primary_socket,1, 2,3, 4,"@o");
+    	
+    	send_packet(frontend_primary_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
+    	
+    	
 
 
     	printf("%s\n", message.payload);
