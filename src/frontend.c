@@ -26,20 +26,21 @@ void *frontend_run(void *arg){
     //OPEN SOCKET  
     print_error((sockfd < 0),"ERROR opening socket\n"); 
 
+    bzero((char *) &serv_addr, sizeof(serv_addr)); 
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = INADDR_ANY;
+
     //FINDING AN AVAILABLE PORT
     while(!found_port){
     	aux_port++;
 	    //Initializing structure
-	    bzero((char *) &serv_addr, sizeof(serv_addr)); 
-	    serv_addr.sin_family = AF_INET;
-	    serv_addr.sin_addr.s_addr = INADDR_ANY;
+	   
 	    serv_addr.sin_port = htons(aux_port);
 	    
 
 	    //BIND TO HOST
 	    print_error((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1),"ERROR on setsockopt\n"); 
-	  	
-	  	
+	  	 	
 	  	//If the binding fails, we try again in another port.
 	    if( bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) >= 0){
 	    	//If the binding works,set the port

@@ -1,7 +1,7 @@
-all: app_cliente server
+all: client server
 
-app_cliente: client.o
-	gcc -pthread -o app_cliente client.o -fsanitize=address
+client: client.o
+	gcc -pthread -o client client.o -fsanitize=address
 
 client.o: client.c
 	gcc -c client.c -fsanitize=address
@@ -14,4 +14,4 @@ server.o: server.c
 
 
 clean:
-	rm *.o app_cliente server
+	rm *.o client server

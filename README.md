@@ -10,7 +10,7 @@ make
 ./server <path_to_config_file> <id_of_server>
 
 //RUN CLIENT
-./app_cliente <profile> <server_address> <primary_port>
+./client <profile> <server_address> <primary_port>
 
 
 
