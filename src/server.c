@@ -198,9 +198,8 @@ void *handle_client_messages(void *arg) {
       switch(message.type)
       {
          case CMD_QUIT:     
-            send_packet(newsockfd,SRV_MSG,++sqncnt,1,0,"");
-            
-            
+            send_packet(newsockfd,CMD_QUIT,++sqncnt,1,0,"");
+           
             pthread_mutex_lock(&online_mutex);
             profile_list[profile_id].online -=1;
             pthread_mutex_unlock(&online_mutex); 
@@ -208,8 +207,7 @@ void *handle_client_messages(void *arg) {
             
             pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
 
-           
-            close(newsockfd);
+            
             par->flag = 0;
          break;
 
@@ -384,7 +382,7 @@ int main( int argc, char *argv[] ) {
          //Receive message
          receive(newsockfd, &message);
          print_error((message.type != INIT_USER),"Error, user not initialized.\n");
-         printf("I GOT HERE :)\n");
+        
                  
          //Create or update profile
          profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);

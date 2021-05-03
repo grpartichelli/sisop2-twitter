@@ -14,7 +14,8 @@
 #include "../include/frontend.h"
 
 struct hostent *server;
-void *primary_server_communication(void *arg);
+void *client_to_primary_server(void *arg);
+void *primary_server_to_client(void *arg);
 
 int frontend_port = -1;
 int primary_server_port = - 1;
@@ -23,7 +24,8 @@ int client_frontend_socket;
 
 void *frontend_run(void *arg){
 
-	pthread_t thr_primary_server_communication;
+	pthread_t thr_primary_server_to_client;
+	pthread_t thr_client_to_primary_server;
 
 	struct frontend_params *params = (struct frontend_params *) arg;
 	server =  gethostbyname(params->host);
@@ -84,39 +86,40 @@ void *frontend_run(void *arg){
    
     print_error((connect(frontend_primary_socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
 	////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-  
-    pthread_create(&thr_primary_server_communication, NULL, primary_server_communication,NULL);
-    pthread_join(thr_primary_server_communication,NULL);
+  	//CREATE THREADS
+    pthread_create(&thr_client_to_primary_server, NULL, client_to_primary_server,NULL);
+    pthread_create(&thr_primary_server_to_client, NULL, primary_server_to_client,NULL);
+    pthread_join(thr_client_to_primary_server,NULL);
+    pthread_join(thr_primary_server_to_client, NULL);
 
 }
 
 //Send the messages from the client to the server
-void *primary_server_communication(void *arg){
+void *client_to_primary_server(void *arg){
+	
+	
+	//Receive message
+    packet message;
+    while(1){	
+    	receive(client_frontend_socket, &message);
+    	send_packet(frontend_primary_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
+    	free(message.payload);
+   	};
+}
+
+
+//Send the messages from the server to client
+void *primary_server_to_client(void *arg){
 	
 	
 	//Receive message
     packet message;
     while(1){
-
-    	
-    	receive(client_frontend_socket, &message);
-
-    	if(message.type == CMD_QUIT){
-    		exit(1);
-	    }
-    	
-    	send_packet(frontend_primary_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
-    	
-    	
-
-    	printf("%s\n", message.payload);
-
+    	receive(frontend_primary_socket, &message);
+    	send_packet(client_frontend_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
     	free(message.payload);
+    	
+    	
    	};
 }
 

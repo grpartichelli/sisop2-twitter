@@ -34,11 +34,19 @@ void intHandler(int dummy) {
 
 
 void quit_signal(){ //When we want to quit, send this to the server
+    packet message;
+
     send_packet(sockfd,CMD_QUIT,++sqncnt,0,0,"");
     receive_and_print(sockfd);
-    close(sockfd);
+
+
     system("clear"); 
     printf("Cliente encerrou sua sessão.\n");
+
+    close(sockfd);
+
+    
+    
     exit(1);
 }
 
