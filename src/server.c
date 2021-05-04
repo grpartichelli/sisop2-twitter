@@ -30,6 +30,8 @@ rm rm_list[MAX_RMS];
 int rm_list_size;
 int get_rm_list_index(int id);
 void backup_connect_to_primary();
+void backup_connect_to_backup(int id);
+void *backup_accept_new_backups(void *arg);
 
 //////////////////////////////////////////
 //Struct used for creating threads
@@ -39,11 +41,12 @@ typedef struct thread_parameters{
    int flag; 
 }thread_parameters;
 
-int sqncnt = 0;
-int sockfd;
+int sqncnt = 0,clilen;
+struct sockaddr_in serv_addr, cli_addr;
 
 //THREADS
 pthread_t client_pthread[MAX_CLIENTS*2]; //Each client has two threads, one for consuming and one for producing
+pthread_t thr_backup_accept_backups;
 
 //MUTEX
 pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER; //Making sure sends can't alter notifications at the same time
@@ -57,7 +60,7 @@ profile profile_list[MAX_CLIENTS];
 
 //detecting ctrl+c
 void intHandler(int dummy) {
-   close(sockfd);   
+   close(this_rm.socket);   
    save_profiles(profile_list,this_rm.id);
    printf("\nServer ended successfully\n");
    exit(0);
@@ -348,9 +351,9 @@ int main( int argc, char *argv[] ) {
 
 
    int i=0,profile_id, rm_list_index;
-   int newsockfd, portno, clilen;
+   int newsockfd, portno;
    int yes =1;
-   struct sockaddr_in serv_addr, cli_addr;
+   
    packet message;
    thread_parameters parameters[MAX_CLIENTS];
    
@@ -361,10 +364,10 @@ int main( int argc, char *argv[] ) {
   
 
    //CREATE SOCKET
-   sockfd = socket(AF_INET, SOCK_STREAM, 0);
+   this_rm.socket = socket(AF_INET, SOCK_STREAM, 0);
    
    //OPEN SOCKET  
-   print_error((sockfd < 0),"ERROR opening socket\n");  
+   print_error((this_rm.socket < 0),"ERROR opening socket\n");  
   
 
    //Initializing structure
@@ -374,13 +377,13 @@ int main( int argc, char *argv[] ) {
    serv_addr.sin_port = htons(this_rm.port);
 
    //BIND TO HOST
-   print_error((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1),"ERROR on setsockopt\n"); 
-   print_error((bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0),"ERROR on binding.\n"); 
+   print_error((setsockopt(this_rm.socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1),"ERROR on setsockopt\n"); 
+   print_error((bind(this_rm.socket, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0),"ERROR on binding.\n"); 
 
    printf("Server started correctly.\n");
 
 	//LISTEN
-   listen(sockfd,5);
+   listen(this_rm.socket,5);
    clilen = sizeof(cli_addr);
 
 
@@ -392,7 +395,7 @@ int main( int argc, char *argv[] ) {
       //PRIMARY CODE
       if(this_rm.is_primary){
          //ACCEPT
-         newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
+         newsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
          print_error((newsockfd < 0),"ERROR on accept");
 
          //Receive message
@@ -434,9 +437,11 @@ int main( int argc, char *argv[] ) {
 
       /////////////////////////////////////
       } else{//BACKUP CODE
+
          backup_connect_to_primary();
-         send_packet(primary_rm.socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id);
-         
+         //create thread that will accept new backups
+         print_error((pthread_create(&thr_backup_accept_backups, NULL, backup_accept_new_backups, NULL) != 0 ),"Failed to create accept backups thread.\n" );
+                
          while(1){
 
             receive(primary_rm.socket, &message);
@@ -444,21 +449,21 @@ int main( int argc, char *argv[] ) {
 
             switch(message.type){
                case INIT_BACKUP:
-                  printf("hey :)\n");
+                  //Start connection with this backup
+                  if(atoi(message.payload) != this_rm.id){
+                     backup_connect_to_backup(atoi(message.payload));
+                  }
                break;
             
             }
             free(message.payload);
          }
         
-
-
-
       }
       
    }
 	  
-   close(sockfd);
+   close(this_rm.socket);
    printf("Server ended successfully\n");
 
    return 0;
@@ -466,7 +471,47 @@ int main( int argc, char *argv[] ) {
 
 /////////////////////////////////////////////
 //BACKUP CODE
+//thread that accepts new backups connections
+void *backup_accept_new_backups(void *arg){
+   packet message;
 
+   while(1){
+
+      int tempsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
+      print_error((tempsockfd < 0),"ERROR on accept");
+
+      //Receive message
+      receive(tempsockfd, &message);
+
+      int rm_list_index = get_rm_list_index(atoi(message.payload)); 
+      free(message.payload);  
+      rm_list[rm_list_index].socket =tempsockfd;
+
+      printf("i received you mate!\n");
+   }
+  
+}
+
+
+//connect to a new backup by its id
+void backup_connect_to_backup(int id){
+   int rm_list_index = get_rm_list_index(id);
+
+   struct sockaddr_in serv_addr,cli_addr;
+   struct hostent *server;
+   server = gethostbyname("localhost");
+   //GET FRONTEND_PRIMARY SOCKET
+   print_error(((rm_list[rm_list_index].socket = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
+   //CONNECT TO FRONTEND_PRIMARY SOCKET
+   serv_addr.sin_family = AF_INET;     
+   serv_addr.sin_port = htons(rm_list[rm_list_index].port);    
+   serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
+   bzero(&(serv_addr.sin_zero), 8);     
+   
+   print_error((connect(rm_list[rm_list_index].socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
+   send_packet(rm_list[rm_list_index].socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id);
+   
+}
 //connect to the primary server socket
 void backup_connect_to_primary(){
    struct sockaddr_in serv_addr,cli_addr;
@@ -481,7 +526,8 @@ void backup_connect_to_primary(){
    bzero(&(serv_addr.sin_zero), 8);     
    
    print_error((connect(primary_rm.socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
-
+   send_packet(primary_rm.socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id);
+        
 }
 
 
