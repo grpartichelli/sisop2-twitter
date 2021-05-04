@@ -17,6 +17,9 @@
 #define SRV_MSG 5
 #define	INIT_USER 6 
 
+//Communication between RMs
+#define INIT_BACKUP 7
+
 
 
 #define BUFFER_SIZE 256

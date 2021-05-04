@@ -31,7 +31,7 @@ void *frontend_run(void *arg){
 	server =  gethostbyname(params->host);
     primary_server_port = params->primary_port;
 
-	struct sockaddr_in serv_addr,cli_addr;;
+	struct sockaddr_in serv_addr,cli_addr;
     int sockfd,yes=1,clilen,found_port=0;
 	int aux_port = 4999;//Default port
     

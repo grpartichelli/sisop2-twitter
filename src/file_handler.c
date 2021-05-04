@@ -92,8 +92,8 @@ void read_config_file(char *config_file_name, int id, rm *this_rm, rm* primary_r
     size_t len = 0;
     ssize_t read;
     int count = 0;
-    int currentId,currentPort,currentIsPrimary;
-
+    int currentPort,currentIsPrimary;
+    char currentId[5];
     FILE *config = fopen(config_file_name, "r");
     if (config == NULL){
     	printf("Failed to open config file\n");
@@ -111,7 +111,7 @@ void read_config_file(char *config_file_name, int id, rm *this_rm, rm* primary_r
     		
     		atoi(divided);
     		if(count==0)
-    			currentId = atoi(divided);
+    			strcpy(currentId,divided);
     		
     		if(count==1)
     			currentPort = atoi(divided);
@@ -132,21 +132,25 @@ void read_config_file(char *config_file_name, int id, rm *this_rm, rm* primary_r
   		if(currentIsPrimary){
   			primary_rm->is_primary = currentIsPrimary;
   			primary_rm->port = currentPort;
-  			primary_rm->id = currentId;
+  			strcpy(primary_rm->string_id,currentId);
+        primary_rm->id = atoi(currentId);
   			flagPrimary = 1;
   		}
 
-  		if(currentId == id){
+  		if(atoi(currentId) == id){
   			this_rm->is_primary = currentIsPrimary;
   			this_rm->port = currentPort;
-  			this_rm->id = currentId;
+  			strcpy(this_rm->string_id,currentId);
+        this_rm->id = atoi(currentId);
   			flagThis = 1;
   		}
 
-  		if(currentId != id && !currentIsPrimary){
+  		if(atoi(currentId) != id && !currentIsPrimary){
   			rm_list[countOthers].is_primary = currentIsPrimary;
   			rm_list[countOthers].port = currentPort;
-  			rm_list[countOthers].id = currentId;
+  			strcpy(rm_list[countOthers].string_id,currentId);
+        rm_list[countOthers].id = atoi(currentId);
+        rm_list[countOthers].socket =-1;
   			countOthers++;
   		}	
    
@@ -169,5 +173,6 @@ void read_config_file(char *config_file_name, int id, rm *this_rm, rm* primary_r
     }
 
     *rm_list_size = countOthers;
+    
 
 }

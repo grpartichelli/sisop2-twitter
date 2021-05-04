@@ -5,10 +5,11 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include <sys/types.h> 
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <netdb.h> 
 #include <signal.h>
 
 #include "communication.c"
@@ -18,6 +19,8 @@
 #include "rm.c"
 
 
+/////////////////////////////////////////
+//ETAPA2
 //configuration of this RM
 rm this_rm;
 //configuration of primary RM
@@ -25,8 +28,10 @@ rm primary_rm;
 //configuration of other RM
 rm rm_list[MAX_RMS];
 int rm_list_size;
+int get_rm_list_index(int id);
+void backup_connect_to_primary();
 
-
+//////////////////////////////////////////
 //Struct used for creating threads
 typedef struct thread_parameters{ 
    int socket;
@@ -320,8 +325,16 @@ void init_barriers(){
        pthread_barrier_init (&barriers[i], NULL, 0);
    }
 }
+//send a packet to every socket connect to the primary
+void primary_multicast(int type, int sqn, int len, int timestamp, char* payload){
 
+   for(int i=0;i<rm_list_size;i++){
+      if(rm_list[i].socket != -1){
+         send_packet(rm_list[i].socket,type, sqn,len,timestamp,payload);
+      }
+   }
 
+}
 
 int main( int argc, char *argv[] ) {
 
@@ -334,7 +347,7 @@ int main( int argc, char *argv[] ) {
    if(this_rm.is_primary){printf("TYPE: PRIMARY\n");} else{printf("TYPE: BACKUP\n");}
 
 
-   int i=0,profile_id;
+   int i=0,profile_id, rm_list_index;
    int newsockfd, portno, clilen;
    int yes =1;
    struct sockaddr_in serv_addr, cli_addr;
@@ -374,6 +387,9 @@ int main( int argc, char *argv[] ) {
    while(1){
       signal(SIGINT, intHandler); //detect ctrl+c
 
+
+
+      //PRIMARY CODE
       if(this_rm.is_primary){
          //ACCEPT
          newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
@@ -381,28 +397,63 @@ int main( int argc, char *argv[] ) {
 
          //Receive message
          receive(newsockfd, &message);
-         print_error((message.type != INIT_USER),"Error, user not initialized.\n");
-        
-                 
-         //Create or update profile
-         profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
-         free(message.payload);
+         switch(message.type){
+            case INIT_USER:
+                //Create or update profile
+               profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
+               free(message.payload);
 
-         if(profile_id != -1){
-            //Update barrier in case number of online user changed
-            pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
-            
+               if(profile_id != -1){
+                  //Update barrier in case number of online user changed
+                  pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
+                  
 
-            //LOAD PARAMETERS FOR THREADS
-            parameters[i].profile_id = profile_id;
-            parameters[i].socket = newsockfd;
-            parameters[i].flag = 1;
-            
-            //One thread consumes notifications, the other reads user input
-            print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
-            print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
-            i+=2;
+                  //LOAD PARAMETERS FOR THREADS
+                  parameters[i].profile_id = profile_id;
+                  parameters[i].socket = newsockfd;
+                  parameters[i].flag = 1;
+                  
+                  //One thread consumes notifications, the other reads user input
+                  print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
+                  print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
+                  i+=2;
+               }
+            break;
+
+            case INIT_BACKUP:
+               rm_list_index = get_rm_list_index(atoi(message.payload)); 
+               free(message.payload);  
+               rm_list[rm_list_index].socket = newsockfd;
+               //warn all the other backups this one connected
+               primary_multicast(INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id);
+              
+            break;           
          }
+
+
+
+      /////////////////////////////////////
+      } else{//BACKUP CODE
+         backup_connect_to_primary();
+         send_packet(primary_rm.socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id);
+         
+         while(1){
+
+            receive(primary_rm.socket, &message);
+            printf("%s\n",message.payload);
+
+            switch(message.type){
+               case INIT_BACKUP:
+                  printf("hey :)\n");
+               break;
+            
+            }
+            free(message.payload);
+         }
+        
+
+
+
       }
       
    }
@@ -411,4 +462,37 @@ int main( int argc, char *argv[] ) {
    printf("Server ended successfully\n");
 
    return 0;
+}
+
+/////////////////////////////////////////////
+//BACKUP CODE
+
+//connect to the primary server socket
+void backup_connect_to_primary(){
+   struct sockaddr_in serv_addr,cli_addr;
+   struct hostent *server;
+   server = gethostbyname("localhost");
+   //GET FRONTEND_PRIMARY SOCKET
+   print_error(((primary_rm.socket = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
+   //CONNECT TO FRONTEND_PRIMARY SOCKET
+   serv_addr.sin_family = AF_INET;     
+   serv_addr.sin_port = htons(primary_rm.port);    
+   serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
+   bzero(&(serv_addr.sin_zero), 8);     
+   
+   print_error((connect(primary_rm.socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
+
+}
+
+
+//connect to the primary server socket
+int get_rm_list_index(int id){
+
+   for(int i =0; i<MAX_RMS; i++){
+      if(rm_list[i].id == id){
+         return i;
+      }
+   }
+
+   return -1;
 }
