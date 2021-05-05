@@ -357,14 +357,14 @@ void primary_multicast(int type, int sqn, int len, int timestamp, char* payload)
 //sends the initial info needed for a backup to be synchronized
 void primary_send_initial_info(int rm_index){
    char payload[100];
+   sleep(1);   
    for(int i =0; i<MAX_CLIENTS; i++){
       if(profile_list[i].name != "" && profile_list[i].name[0] == '@'){
          
-         
+         printf("%s\n", profile_list[i].name);
          strcpy(payload,profile_list[i].name);
          send_packet(rm_list[rm_index].socket,LOAD_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
-
-         //send_packet(rm_list[rm_index].socket,1,1,strlen("hello my friend")+1,1,"hello my friend");
+         sleep(1);   
      
       }
       else{
@@ -466,20 +466,12 @@ int main( int argc, char *argv[] ) {
                
                rm_list[rm_list_index].socket = newsockfd;
                //warn all the other backups this one connected
-              
+               
                primary_multicast(INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id);
                
-
-             
-               int i =0;
-               while(i<10){
-                  send_packet(rm_list[rm_list_index].socket,1,1,strlen("hello my friend")+1,1,"hello my friend");
-                  i++;
-               }
-
-
-               ///send all initial info to this backup
-               //primary_send_initial_info(rm_list_index);
+               
+               //send all initial info to this backup
+               primary_send_initial_info(rm_list_index);
 
             break;           
          }
@@ -510,8 +502,8 @@ int main( int argc, char *argv[] ) {
                break;
                case LOAD_USER:
                   
-                  //backup_load_user(message, new_user);
-                  //new_user++;
+                  backup_load_user(message, new_user);
+                  new_user++;
                break;
                free(message.payload);
             
