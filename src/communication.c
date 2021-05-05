@@ -15,7 +15,10 @@ void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pa
 	//	printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
 
 	write(sockfd,&message,8);
+	
 	write(sockfd,payload,strlen(payload));
+
+
 }
 
 

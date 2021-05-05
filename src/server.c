@@ -32,6 +32,7 @@ int get_rm_list_index(int id);
 void backup_connect_to_primary();
 void backup_connect_to_backup(int id);
 void *backup_accept_new_backups(void *arg);
+void backup_load_user(packet message, int new_user);
 
 //////////////////////////////////////////
 //Struct used for creating threads
@@ -120,6 +121,9 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
    profile_list[follow_id].num_followers++;
    profile_list[follow_id].followers[num_followers] =  &profile_list[profile_id];
 
+   //SAVE PROFILES
+   save_profiles(profile_list,this_rm.id);
+
    //SEND TO USER THAT FOLLOW WAS SUCCESSFULL
    strcpy(payload,"FOLLOW executou com sucesso.");
    send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload);  
@@ -172,6 +176,9 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
       p->pnd_notifs[num_pnd_notifs].profile_id= profile_id;
    
    }
+
+   //SAVE PROFILES
+   save_profiles(profile_list,this_rm.id);
 
    //SEND TO USER SEND WAS SUCCESSFULL
    char payload[100];
@@ -309,6 +316,10 @@ void *handle_client_consumes(void *arg) {
 
                }
             }
+
+             //SAVE PROFILES
+             save_profiles(profile_list,this_rm.id);
+
             //END MUTEX
             pthread_mutex_unlock(&send_mutex);
            
@@ -337,6 +348,26 @@ void primary_multicast(int type, int sqn, int len, int timestamp, char* payload)
       }
    }
 
+}
+
+//sends the initial info needed for a backup to be synchronized
+void primary_send_initial_info(int rm_index){
+
+   for(int i =0; i<MAX_CLIENTS; i++){
+      if(profile_list[i].name != "" && profile_list[i].name[0] == '@'){
+         
+         printf("%s\n",profile_list[i].name);
+
+         //send_packet(rm_list[rm_index].socket, ++sqncnt,strlen(profile_list[i].name)+1,getTime(),profile_list[i].name);
+
+         send_packet(rm_list[rm_index].socket,1,1,strlen("hello my friend")+1,1,"hello my friend");
+     
+      }
+      else{
+         return;
+      }
+   }
+              
 }
 
 int main( int argc, char *argv[] ) {
@@ -391,7 +422,6 @@ int main( int argc, char *argv[] ) {
       signal(SIGINT, intHandler); //detect ctrl+c
 
 
-
       //PRIMARY CODE
       if(this_rm.is_primary){
          //ACCEPT
@@ -403,8 +433,11 @@ int main( int argc, char *argv[] ) {
          switch(message.type){
             case INIT_USER:
                 //Create or update profile
-               profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
-               free(message.payload);
+                profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
+                free(message.payload);
+
+                //SAVE PROFILES
+                save_profiles(profile_list,this_rm.id);
 
                if(profile_id != -1){
                   //Update barrier in case number of online user changed
@@ -425,11 +458,14 @@ int main( int argc, char *argv[] ) {
 
             case INIT_BACKUP:
                rm_list_index = get_rm_list_index(atoi(message.payload)); 
+               printf("%d\n", rm_list_index);
                free(message.payload);  
                rm_list[rm_list_index].socket = newsockfd;
                //warn all the other backups this one connected
                primary_multicast(INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id);
-              
+               ///send all initial info to this backup
+               primary_send_initial_info(rm_list_index);
+
             break;           
          }
 
@@ -439,21 +475,30 @@ int main( int argc, char *argv[] ) {
       } else{//BACKUP CODE
 
          backup_connect_to_primary();
+
          //create thread that will accept new backups
          print_error((pthread_create(&thr_backup_accept_backups, NULL, backup_accept_new_backups, NULL) != 0 ),"Failed to create accept backups thread.\n" );
-                
+         
+         int new_user = 0;    
          while(1){
 
             receive(primary_rm.socket, &message);
-            printf("%s\n",message.payload);
+            printf("%s -- %d\n",message.payload,message.type);
 
             switch(message.type){
                case INIT_BACKUP:
                   //Start connection with this backup
                   if(atoi(message.payload) != this_rm.id){
+                     printf("???????????");
                      backup_connect_to_backup(atoi(message.payload));
                   }
                break;
+               case LOAD_USER:
+                  
+                  //backup_load_user(message, new_user);
+                  //new_user++;
+               break;
+
             
             }
             free(message.payload);
@@ -471,14 +516,36 @@ int main( int argc, char *argv[] ) {
 
 /////////////////////////////////////////////
 //BACKUP CODE
-//thread that accepts new backups connections
+
+//this is just for initial configuration of making the rm equal
+void backup_load_user(packet message, int new_user){
+
+   profile_list[new_user].name = (char*)malloc(strlen(message.payload)+1);
+   strcpy(profile_list[new_user].name,message.payload);
+
+   profile_list[new_user].num_followers = 0;
+   profile_list[new_user].num_snd_notifs = 0;
+   profile_list[new_user].num_pnd_notifs = 0;
+
+    //Initializing pending and send notifications
+   for(int j=0;j<MAX_NOTIFS; j++){
+      profile_list[new_user].pnd_notifs[j].notif_id = -1;
+      profile_list[new_user].pnd_notifs[j].profile_id = -1;
+      profile_list[new_user].snd_notifs[j]= NULL;
+   }
+
+   save_profiles(profile_list,this_rm.id);
+}
+
+
+//thread that accepts new backups connections, so that all rms are socket connected
 void *backup_accept_new_backups(void *arg){
    packet message;
 
    while(1){
 
       int tempsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
-      print_error((tempsockfd < 0),"ERROR on accept");
+      print_error((tempsockfd < 0),"");
 
       //Receive message
       receive(tempsockfd, &message);
@@ -486,8 +553,6 @@ void *backup_accept_new_backups(void *arg){
       int rm_list_index = get_rm_list_index(atoi(message.payload)); 
       free(message.payload);  
       rm_list[rm_list_index].socket =tempsockfd;
-
-      printf("i received you mate!\n");
    }
   
 }

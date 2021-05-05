@@ -19,6 +19,7 @@
 
 //Communication between RMs
 #define INIT_BACKUP 7
+#define LOAD_USER 8
 
 
 

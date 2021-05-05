@@ -22,7 +22,9 @@ void save_profiles(profile profile_list[MAX_CLIENTS], int id)
 
 	while(profile_list[i].name!="")
 	{
-		if(strlen(profile_list[i].name)!=0){
+    
+		if(strlen(profile_list[i].name)!=0 && profile_list[i].name[0] == '@'){
+
 			fprintf(profiles, "%i %s %i ", (int)strlen(profile_list[i].name), profile_list[i].name, profile_list[i].num_followers);
 			for (j = 0; j<profile_list[i].num_followers; j++)
 			{
