@@ -505,7 +505,7 @@ int main( int argc, char *argv[] ) {
                break;
                case LOAD_USER:
                   
-                  //backup_load_user(message, new_user);
+                  backup_load_user(message, new_user);
                   send_packet(primary_rm.socket,10, ++sqncnt,strlen("hey!")+1,getTime(),"hey!");
                   new_user++;
                break;
