@@ -356,16 +356,19 @@ void primary_multicast(int type, int sqn, int len, int timestamp, char* payload)
 
 //sends the initial info needed for a backup to be synchronized
 void primary_send_initial_info(int rm_index){
+   packet message;
    char payload[100];
-   sleep(1);   
+   
    for(int i =0; i<MAX_CLIENTS; i++){
       if(profile_list[i].name != "" && profile_list[i].name[0] == '@'){
          
-         printf("%s\n", profile_list[i].name);
+         
          strcpy(payload,profile_list[i].name);
          send_packet(rm_list[rm_index].socket,LOAD_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
-         sleep(1);   
      
+         receive(rm_list[rm_index].socket,&message);
+         
+         free(message.payload);
       }
       else{
          return;
@@ -502,7 +505,8 @@ int main( int argc, char *argv[] ) {
                break;
                case LOAD_USER:
                   
-                  backup_load_user(message, new_user);
+                  //backup_load_user(message, new_user);
+                  send_packet(primary_rm.socket,10, ++sqncnt,strlen("hey!")+1,getTime(),"hey!");
                   new_user++;
                break;
                free(message.payload);
