@@ -358,9 +358,9 @@ void primary_send_initial_info(int rm_index){
          
          printf("%s\n",profile_list[i].name);
 
-         //send_packet(rm_list[rm_index].socket, ++sqncnt,strlen(profile_list[i].name)+1,getTime(),profile_list[i].name);
+         send_packet(rm_list[rm_index].socket,LOAD_USER, ++sqncnt,strlen(profile_list[i].name)+1,getTime(),profile_list[i].name);
 
-         send_packet(rm_list[rm_index].socket,1,1,strlen("hello my friend")+1,1,"hello my friend");
+         //send_packet(rm_list[rm_index].socket,1,1,strlen("hello my friend")+1,1,"hello my friend");
      
       }
       else{
@@ -485,11 +485,11 @@ int main( int argc, char *argv[] ) {
             receive(primary_rm.socket, &message);
             printf("%s -- %d\n",message.payload,message.type);
 
+
             switch(message.type){
                case INIT_BACKUP:
                   //Start connection with this backup
                   if(atoi(message.payload) != this_rm.id){
-                     printf("???????????");
                      backup_connect_to_backup(atoi(message.payload));
                   }
                break;
@@ -498,10 +498,10 @@ int main( int argc, char *argv[] ) {
                   //backup_load_user(message, new_user);
                   //new_user++;
                break;
-
+               free(message.payload);
             
             }
-            free(message.payload);
+            
          }
         
       }
