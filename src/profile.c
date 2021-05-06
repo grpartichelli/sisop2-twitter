@@ -1,16 +1,26 @@
 #include "../include/profile.h"
 #include "../include/communication.h"
 
+void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload);
+
 //Add profile if it doesn't exist, else add to online 
 int handle_profile(profile *profile_list, char *username, int newsockfd, int sqncnt, pthread_mutex_t online_mutex){
-
+    char payload[150];
+   //SEND TO THE OTHER RMs
   
+               
+
    int profile_id = get_profile_id(profile_list,username);
 
    if(profile_id == -1){ //CASO NÃO EXISTA 
 
       //INSERE
       profile_id = insert_profile(profile_list, username,online_mutex);
+
+      //AVISA OS RMS
+      strcpy(payload,profile_list[profile_id].name);
+      primary_multicast(profile_id ,CREATE_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
+      primary_multicast(profile_id ,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
 
       if(profile_id == -1){
          printf("MAX NUMBER OF PROFILES REACHED\n");
@@ -29,6 +39,9 @@ int handle_profile(profile *profile_list, char *username, int newsockfd, int sqn
          //AUMENTA A QUANTIDADE DE USUARIOS ONLINE
           pthread_mutex_lock(&online_mutex);
           profile_list[profile_id].online +=1;
+
+          strcpy(payload,profile_list[profile_id].name);
+          primary_multicast(profile_id ,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
           pthread_mutex_unlock(&online_mutex);
          
       }

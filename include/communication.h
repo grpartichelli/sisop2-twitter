@@ -20,8 +20,10 @@
 //Communication between RMs
 #define ACK 7
 #define INIT_BACKUP 8
-#define LOAD_USER 9
+#define CREATE_USER 9
 #define ADD_ONLINE 10
+#define SUB_ONLINE 11
+
 
 
 

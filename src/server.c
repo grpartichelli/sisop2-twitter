@@ -32,7 +32,7 @@ int get_rm_list_index(int id);
 void backup_connect_to_primary();
 void backup_connect_to_backup(int id);
 void *backup_accept_new_backups(void *arg);
-void backup_load_user(packet message, int new_user);
+void backup_create_user(packet message, int new_user);
 void backup_send_ack_to_primary();
 void backup_add_follower(int follower, int followed);
 void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload);
@@ -381,8 +381,13 @@ void primary_send_initial_info(int rm_index){
       
       if(profile_list[i].name != "" && profile_list[i].name[0] == '@'){ 
          strcpy(payload,profile_list[i].name);
-         send_packet_with_userid(rm_list[rm_index].socket, i ,LOAD_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
+         send_packet_with_userid(rm_list[rm_index].socket, i ,CREATE_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
          primary_receive_ack(rm_index);  
+
+         for(int k =0; k<profile_list[i].online;k++){
+            send_packet_with_userid(rm_list[rm_index].socket,i,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
+            primary_receive_ack(rm_index); 
+         }
       }
       else{
          break;
@@ -422,6 +427,7 @@ int main( int argc, char *argv[] ) {
    int i=0,profile_id, rm_list_index;
    int newsockfd, portno;
    int yes =1;
+   char payload[150];
    
    packet message;
    thread_parameters parameters[MAX_CLIENTS];
@@ -473,6 +479,8 @@ int main( int argc, char *argv[] ) {
                 //Create or update profile
                 profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
                 free(message.payload);
+
+
 
                 //SAVE PROFILES
                 save_profiles(profile_list,this_rm.id);
@@ -535,8 +543,8 @@ int main( int argc, char *argv[] ) {
                   }
                   
                break;
-               case LOAD_USER:  
-                  backup_load_user(message, message.userid);
+               case CREATE_USER:  
+                  backup_create_user(message, message.userid);
                   printf("%s has been created.\n",message.payload);
                   
                break;
@@ -547,6 +555,15 @@ int main( int argc, char *argv[] ) {
                   printf("%s is now following %s.\n",message.payload,profile_list[message.userid].name);
    
                break; 
+
+               case ADD_ONLINE:
+                  profile_list[message.userid].online++;
+                  printf("Added 1 to %s online counter.\n",profile_list[message.userid].name);
+               break;
+               case SUB_ONLINE:
+                  profile_list[message.userid].online--;
+                  printf("%s subtracted to online counter.\n",profile_list[message.userid].name);
+               break;
              }
              
             
@@ -571,6 +588,9 @@ int main( int argc, char *argv[] ) {
 }
 
 /////////////////////////////////////////////
+
+
+
 //HANDLE FOLLOW
 void backup_add_follower(int follower, int followed){
 
@@ -579,9 +599,6 @@ void backup_add_follower(int follower, int followed){
    profile_list[followed].followers[num_followers] =  &profile_list[follower];
    profile_list[followed].num_followers++;
 
-
-
- 
 }
 
 //BACKUP CODE
@@ -589,7 +606,7 @@ void backup_send_ack_to_primary(){
    send_packet(primary_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack");
 }
 //this is just for initial configuration of making the rm equal
-void backup_load_user(packet message, int new_user){
+void backup_create_user(packet message, int new_user){
 
    profile_list[new_user].name = (char*)malloc(strlen(message.payload)+1);
    strcpy(profile_list[new_user].name,message.payload);
