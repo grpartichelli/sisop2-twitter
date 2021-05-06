@@ -34,6 +34,8 @@ void backup_connect_to_backup(int id);
 void *backup_accept_new_backups(void *arg);
 void backup_load_user(packet message, int new_user);
 void backup_send_ack_to_primary();
+void backup_add_follower(int follower, int followed);
+void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload);
 
 //////////////////////////////////////////
 //Struct used for creating threads
@@ -121,6 +123,10 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
    //ADD FOLLOWER
    profile_list[follow_id].num_followers++;
    profile_list[follow_id].followers[num_followers] =  &profile_list[profile_id];
+
+   //UPDATE THE RMS
+   primary_multicast( follow_id,CMD_FOLLOW, ++sqncnt,strlen(profile_list[profile_id].name)+1,getTime(),profile_list[profile_id].name );
+   
 
    //SAVE PROFILES
    save_profiles(profile_list,this_rm.id);
@@ -251,6 +257,7 @@ void *handle_client_messages(void *arg) {
 
 
 
+
             pthread_mutex_unlock(&follow_mutex);  
          break;
 
@@ -350,13 +357,13 @@ void primary_receive_ack(int rm_id){
 }
 
 //send a packet to every socket connect to the primary
-void primary_multicast(int type, int sqn, int len, int timestamp, char* payload){
+void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload){
 
  
   
    for(int i=0;i<rm_list_size;i++){
       if(rm_list[i].socket != -1){
-         send_packet(rm_list[i].socket,type, sqn,len,timestamp,payload);  
+         send_packet_with_userid(rm_list[i].socket,userid,type, sqn,len,timestamp,payload);  
          primary_receive_ack(i);
       }
    }
@@ -376,17 +383,28 @@ void primary_send_initial_info(int rm_index){
          strcpy(payload,profile_list[i].name);
          send_packet_with_userid(rm_list[rm_index].socket, i ,LOAD_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
          primary_receive_ack(rm_index);  
+      }
+      else{
+         break;
+      }
+   }
 
-         /*
+   for(int i =0; i<MAX_CLIENTS; i++){
+      if(profile_list[i].name != "" && profile_list[i].name[0] == '@'){ 
+         //Send who follows the user
          for(int j=0; j<profile_list[i].num_followers;j++){
-            send_packet(rm_list[rm_index].socket,CMD_FOLLOW ++sqncnt,strlen(payload)+1,getTime(),payload);
+            strcpy(payload,profile_list[i].followers[j]->name);
+            send_packet_with_userid(rm_list[rm_index].socket, i ,CMD_FOLLOW, ++sqncnt,strlen(payload)+1,getTime(),payload);
             primary_receive_ack(rm_index);
-         }*/
+         }
       }
       else{
          return;
       }
    }
+
+
+
               
 }
 
@@ -483,7 +501,7 @@ int main( int argc, char *argv[] ) {
                rm_list[rm_list_index].socket = newsockfd;
                //warn all the other backups this one connected
                
-               primary_multicast(INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id);
+               primary_multicast(-1,INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id);
                
                
                //send all initial info to this backup
@@ -502,13 +520,13 @@ int main( int argc, char *argv[] ) {
          //create thread that will accept new backups
          print_error((pthread_create(&thr_backup_accept_backups, NULL, backup_accept_new_backups, NULL) != 0 ),"Failed to create accept backups thread.\n" );
          
-         int new_user = 0;    
+         int follower,followed;    
          while(1){
 
             receive(primary_rm.socket, &message);
-            printf("%s -- %d\n",message.payload,message.type);
+            printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
 
-
+            
             switch(message.type){
                case INIT_BACKUP:
                   //Start connection with this backup
@@ -522,15 +540,19 @@ int main( int argc, char *argv[] ) {
                   
                break;
 
-
                case CMD_FOLLOW:
-                 // backup_add_follower(follower,followed);
-                  
+                  follower = get_profile_id(profile_list,message.payload );
+                  backup_add_follower(follower ,message.userid);
+   
                break; 
              }
+             
             
-            backup_send_ack_to_primary();
             free(message.payload);
+            backup_send_ack_to_primary();
+           
+
+            save_profiles(profile_list,this_rm.id);
             
            
             
@@ -555,8 +577,9 @@ void backup_add_follower(int follower, int followed){
    profile_list[followed].followers[num_followers] =  &profile_list[follower];
    profile_list[followed].num_followers++;
 
-   //SAVE PROFILES
-   save_profiles(profile_list,this_rm.id);
+
+
+ 
 }
 
 //BACKUP CODE
@@ -580,7 +603,7 @@ void backup_load_user(packet message, int new_user){
       profile_list[new_user].snd_notifs[j]= NULL;
    }
 
-   save_profiles(profile_list,this_rm.id);
+
 }
 
 

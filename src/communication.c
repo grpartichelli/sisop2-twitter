@@ -39,7 +39,6 @@ void send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len,
 	
 	write(sockfd,payload,strlen(payload));
 
-
 }
 
 

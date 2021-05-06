@@ -38,7 +38,7 @@ void save_profiles(profile profile_list[MAX_CLIENTS], int id)
 
 	fclose(profiles);
 	fclose(followers);
-	
+
 }
 
 void read_profiles(profile* profile_list, int id)
