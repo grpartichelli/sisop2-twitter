@@ -198,7 +198,7 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
   
 
 void *handle_client_messages(void *arg) {
-
+   char payload[150];
    //Getting the parameters
    thread_parameters *par = (thread_parameters *) arg;
    int newsockfd = par->socket;
@@ -224,6 +224,10 @@ void *handle_client_messages(void *arg) {
            
             pthread_mutex_lock(&online_mutex);
             profile_list[profile_id].online -=1;
+            
+            strcpy(payload,profile_list[profile_id].name);
+            primary_multicast(profile_id ,SUB_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
+            
             pthread_mutex_unlock(&online_mutex); 
 
             
@@ -562,7 +566,7 @@ int main( int argc, char *argv[] ) {
                break;
                case SUB_ONLINE:
                   profile_list[message.userid].online--;
-                  printf("%s subtracted to online counter.\n",profile_list[message.userid].name);
+                  printf("Subtracted 1 from %s online counter.\n",profile_list[message.userid].name);
                break;
              }
              
