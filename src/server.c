@@ -524,7 +524,7 @@ int main( int argc, char *argv[] ) {
          while(1){
 
             receive(primary_rm.socket, &message);
-            printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
+            //printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
 
             
             switch(message.type){
@@ -537,12 +537,14 @@ int main( int argc, char *argv[] ) {
                break;
                case LOAD_USER:  
                   backup_load_user(message, message.userid);
+                  printf("%s has been created.\n",message.payload);
                   
                break;
 
                case CMD_FOLLOW:
                   follower = get_profile_id(profile_list,message.payload );
                   backup_add_follower(follower ,message.userid);
+                  printf("%s is now following %s.\n",message.payload,profile_list[message.userid].name);
    
                break; 
              }
