@@ -35,6 +35,7 @@ void *backup_accept_new_backups(void *arg);
 void backup_create_user(packet message, int new_user);
 void backup_send_ack_to_primary();
 void backup_add_follower(int follower, int followed);
+void backup_handle_send(packet message, int profile_id);
 void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload);
 
 //////////////////////////////////////////
@@ -184,6 +185,12 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
    
    }
 
+
+
+   //UPDATE THE RMS
+   primary_multicast(profile_id, CMD_SEND, message.sqn, strlen(message.payload)+1,message.timestamp,message.payload);
+   
+
    //SAVE PROFILES
    save_profiles(profile_list,this_rm.id);
 
@@ -225,9 +232,9 @@ void *handle_client_messages(void *arg) {
             pthread_mutex_lock(&online_mutex);
             profile_list[profile_id].online -=1;
             
+            //SENDO RMS
             strcpy(payload,profile_list[profile_id].name);
             primary_multicast(profile_id ,SUB_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
-            
             pthread_mutex_unlock(&online_mutex); 
 
             
@@ -557,8 +564,11 @@ int main( int argc, char *argv[] ) {
                   follower = get_profile_id(profile_list,message.payload );
                   backup_add_follower(follower ,message.userid);
                   printf("%s is now following %s.\n",message.payload,profile_list[message.userid].name);
-   
                break; 
+               case CMD_SEND:
+                   backup_handle_send(message, message.userid);
+                   printf("%s has sent the message: %s\n",profile_list[message.userid].name, message.payload);
+               break;
 
                case ADD_ONLINE:
                   profile_list[message.userid].online++;
@@ -647,6 +657,55 @@ void *backup_accept_new_backups(void *arg){
       rm_list[rm_list_index].socket =tempsockfd;
    }
   
+}
+
+
+void backup_handle_send(packet message, int profile_id){
+
+   notification *notif;
+   profile *p;
+   int num_pnd_notifs;
+   int num_followers = profile_list[profile_id].num_followers;
+   int notif_id;
+   
+   //Update notif id
+   notif_id = profile_list[profile_id].num_snd_notifs;
+   profile_list[profile_id].num_snd_notifs++;
+
+   if(notif_id == MAX_NOTIFS){//Making it circular, will erase the first notification 
+      notif_id = 0;           //if the server didnt send it (it should have by then)
+   }
+
+   //Create notification
+   notif =  malloc(sizeof(notification));
+   notif->id = notif_id;
+   notif->sender = profile_list[profile_id].name;
+   notif->timestamp = message.timestamp;
+   notif->msg = (char*)malloc(strlen(message.payload)*sizeof(char)+sizeof(char));
+   memcpy(notif->msg,message.payload,strlen(message.payload)*sizeof(char)+sizeof(char));
+   notif->len = message.len;
+   notif->pending = profile_list[profile_id].num_followers;
+
+   //Putting the notification on the current profile as send
+   profile_list[profile_id].snd_notifs[notif_id] = notif;
+
+   
+   //Putting the notification of followers pending list
+   for(int i=0; i< num_followers;i++){
+
+      p = profile_list[profile_id].followers[i];
+
+      num_pnd_notifs = p->num_pnd_notifs; 
+      p->num_pnd_notifs++;
+
+      if(p->num_pnd_notifs == MAX_NOTIFS){//Making it circular, will erase the first notification 
+         p->num_pnd_notifs =0;           //if the server didnt send it (it should have by then)
+      }
+
+      p->pnd_notifs[num_pnd_notifs].notif_id= notif_id;
+      p->pnd_notifs[num_pnd_notifs].profile_id= profile_id;
+   
+   }
 }
 
 
