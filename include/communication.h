@@ -23,6 +23,7 @@
 #define CREATE_USER 9
 #define ADD_ONLINE 10
 #define SUB_ONLINE 11
+#define NOTIF_CONSUMED 12
 
 
 

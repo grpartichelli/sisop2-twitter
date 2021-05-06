@@ -36,6 +36,7 @@ void backup_create_user(packet message, int new_user);
 void backup_send_ack_to_primary();
 void backup_add_follower(int follower, int followed);
 void backup_handle_send(packet message, int profile_id);
+void backup_handle_consume(int profile_id, int notif_id);
 void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload);
 
 //////////////////////////////////////////
@@ -333,6 +334,11 @@ void *handle_client_consumes(void *arg) {
                   p->pnd_notifs[i].profile_id = -1;
                   p->pnd_notifs[i].notif_id = -1;
 
+                  //SEND THE CHANGE TO THE RMS
+                  char str_i[10];
+                  sprintf(str_i, "%d", i);
+                  primary_multicast(profile_id ,NOTIF_CONSUMED, ++sqncnt,strlen(str_i)+1,getTime(),str_i);
+
                }
             }
 
@@ -566,8 +572,16 @@ int main( int argc, char *argv[] ) {
                   printf("%s is now following %s.\n",message.payload,profile_list[message.userid].name);
                break; 
                case CMD_SEND:
-                   backup_handle_send(message, message.userid);
-                   printf("%s has sent the message: %s\n",profile_list[message.userid].name, message.payload);
+                  backup_handle_send(message, message.userid);
+                  printf("%s has sent the message: %s\n",profile_list[message.userid].name, message.payload);
+               break;
+
+                case NOTIF_CONSUMED:
+
+                  backup_handle_consume(message.userid,atoi(message.payload));
+                  printf("A notification from %s was consumed.\n",profile_list[profile_id].name);
+
+                   
                break;
 
                case ADD_ONLINE:
@@ -657,6 +671,29 @@ void *backup_accept_new_backups(void *arg){
       rm_list[rm_list_index].socket =tempsockfd;
    }
   
+}
+
+
+void backup_handle_consume(int profile_id, int notif_id){
+
+
+   profile *p = &profile_list[profile_id];
+   notif_identifier notif_identifier = p->pnd_notifs[notif_id];
+   notification *n = profile_list[notif_identifier.profile_id].snd_notifs[notif_identifier.notif_id];
+
+   if(p->pnd_notifs[notif_id].profile_id != -1){ //Test if it hasnt been deleted (multiple of the same clients case)
+                  
+         n->pending--; //Subtract number of pending readers    
+         if(n->pending == 0){ 
+            //Delete notification from sender
+            n = NULL;
+         }
+
+         //Delete notification identifier from client
+         p->pnd_notifs[notif_id].profile_id = -1;
+         p->pnd_notifs[notif_id].notif_id = -1;
+
+      }
 }
 
 
