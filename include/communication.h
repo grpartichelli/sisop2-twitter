@@ -18,8 +18,11 @@
 #define	INIT_USER 6 
 
 //Communication between RMs
-#define INIT_BACKUP 7
-#define LOAD_USER 8
+#define ACK 7
+#define INIT_BACKUP 8
+#define LOAD_USER 9
+#define ADD_ONLINE 10
+
 
 
 
@@ -30,11 +33,12 @@ typedef struct packet{
  uint16_t sqn;          // Sequence number
  uint16_t len;       	// Payload length 
  uint16_t timestamp;    // Timestamp, in a "hhmm" format. E.g. 22h04min -> 2204, 2h15min -> 215
+ uint16_t userid;       //  Used only for communication between RMs, to indicate what user will do what operation
  char* payload;			// Message data
  } packet;
 
 void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* payload);
-
+void send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, int timestamp, char* payload);
 void receive_and_print(int sockfd);
 
 void receive(int sockfd, packet* message);

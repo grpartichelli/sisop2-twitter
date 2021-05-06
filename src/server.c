@@ -33,6 +33,7 @@ void backup_connect_to_primary();
 void backup_connect_to_backup(int id);
 void *backup_accept_new_backups(void *arg);
 void backup_load_user(packet message, int new_user);
+void backup_send_ack_to_primary();
 
 //////////////////////////////////////////
 //Struct used for creating threads
@@ -339,15 +340,24 @@ void init_barriers(){
        pthread_barrier_init (&barriers[i], NULL, 0);
    }
 }
+
+//Wait for an acknowladge from rm_id
+void primary_receive_ack(int rm_id){
+   packet message;
+   receive(rm_list[rm_id].socket,&message);
+   print_error(message.type != ACK, "Unexpected message\n");
+   free(message.payload);
+}
+
 //send a packet to every socket connect to the primary
 void primary_multicast(int type, int sqn, int len, int timestamp, char* payload){
 
  
-
+  
    for(int i=0;i<rm_list_size;i++){
       if(rm_list[i].socket != -1){
-         send_packet(rm_list[i].socket,type, sqn,len,timestamp,payload);
-
+         send_packet(rm_list[i].socket,type, sqn,len,timestamp,payload);  
+         primary_receive_ack(i);
       }
    }
   
@@ -356,19 +366,22 @@ void primary_multicast(int type, int sqn, int len, int timestamp, char* payload)
 
 //sends the initial info needed for a backup to be synchronized
 void primary_send_initial_info(int rm_index){
-   packet message;
-   char payload[100];
+ 
+   char payload[150];
    
+   //Send every user that exists
    for(int i =0; i<MAX_CLIENTS; i++){
-      if(profile_list[i].name != "" && profile_list[i].name[0] == '@'){
-         
-         
+      
+      if(profile_list[i].name != "" && profile_list[i].name[0] == '@'){ 
          strcpy(payload,profile_list[i].name);
-         send_packet(rm_list[rm_index].socket,LOAD_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
-     
-         receive(rm_list[rm_index].socket,&message);
-         
-         free(message.payload);
+         send_packet_with_userid(rm_list[rm_index].socket, i ,LOAD_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
+         primary_receive_ack(rm_index);  
+
+         /*
+         for(int j=0; j<profile_list[i].num_followers;j++){
+            send_packet(rm_list[rm_index].socket,CMD_FOLLOW ++sqncnt,strlen(payload)+1,getTime(),payload);
+            primary_receive_ack(rm_index);
+         }*/
       }
       else{
          return;
@@ -476,7 +489,7 @@ int main( int argc, char *argv[] ) {
                //send all initial info to this backup
                primary_send_initial_info(rm_list_index);
 
-            break;           
+            break;   
          }
 
 
@@ -500,18 +513,26 @@ int main( int argc, char *argv[] ) {
                case INIT_BACKUP:
                   //Start connection with this backup
                   if(atoi(message.payload) != this_rm.id){
-                     backup_connect_to_backup(atoi(message.payload));
+                     backup_connect_to_backup(atoi(message.payload));    
                   }
-               break;
-               case LOAD_USER:
                   
-                  backup_load_user(message, new_user);
-                  send_packet(primary_rm.socket,10, ++sqncnt,strlen("hey!")+1,getTime(),"hey!");
-                  new_user++;
                break;
-               free(message.payload);
+               case LOAD_USER:  
+                  backup_load_user(message, message.userid);
+                  
+               break;
+
+
+               case CMD_FOLLOW:
+                 // backup_add_follower(follower,followed);
+                  
+               break; 
+             }
             
-            }
+            backup_send_ack_to_primary();
+            free(message.payload);
+            
+           
             
          }
         
@@ -526,8 +547,22 @@ int main( int argc, char *argv[] ) {
 }
 
 /////////////////////////////////////////////
-//BACKUP CODE
+//HANDLE FOLLOW
+void backup_add_follower(int follower, int followed){
 
+   //ADD FOLLOWER
+   int num_followers =  profile_list[followed].num_followers;
+   profile_list[followed].followers[num_followers] =  &profile_list[follower];
+   profile_list[followed].num_followers++;
+
+   //SAVE PROFILES
+   save_profiles(profile_list,this_rm.id);
+}
+
+//BACKUP CODE
+void backup_send_ack_to_primary(){
+   send_packet(primary_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack");
+}
 //this is just for initial configuration of making the rm equal
 void backup_load_user(packet message, int new_user){
 

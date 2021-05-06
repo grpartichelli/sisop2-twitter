@@ -8,13 +8,34 @@ void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pa
 	message.sqn = sqn;
 	message.len = len;
 	message.timestamp = timestamp;
+	message.userid = -1;
+	
+
+	//if(DEBUG)
+	//	printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
+
+	write(sockfd,&message,10);
+	
+	write(sockfd,payload,strlen(payload));
+
+
+}
+
+void send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, int timestamp, char* payload)
+{
+	packet message;
+	message.type = type;
+	message.sqn = sqn;
+	message.len = len;
+	message.timestamp = timestamp;
+	message.userid = userid;
 	
 	
 
 	//if(DEBUG)
 	//	printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
 
-	write(sockfd,&message,8);
+	write(sockfd,&message,10);
 	
 	write(sockfd,payload,strlen(payload));
 
@@ -38,7 +59,7 @@ void receive_and_print(int sockfd)
 void receive(int sockfd, packet* message)
 {
 
-	while(read(sockfd,message,8) < 0)
+	while(read(sockfd,message,10) < 0)
     	;
 
     if(message->len!=0)
