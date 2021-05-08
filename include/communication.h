@@ -16,6 +16,7 @@
 #define NOTIF 4
 #define SRV_MSG 5
 #define	INIT_USER 6 
+#define UPDATE_PORT 13
 
 //Communication between RMs
 #define ACK 7
@@ -24,8 +25,13 @@
 #define ADD_ONLINE 10
 #define SUB_ONLINE 11
 #define NOTIF_CONSUMED 12
-#define UPDATE_PORT 13
-#define HEARTBEAT 14
+
+
+#define REMOVE_PORT1 14
+#define REMOVE_PORT2 15
+#define UPDATE_PORT1 16
+#define UPDATE_PORT2 17
+#define HEARTBEAT 50
 
 
 

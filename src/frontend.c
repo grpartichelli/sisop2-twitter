@@ -114,6 +114,7 @@ void *client_to_primary_server(void *arg){
     	send_packet(frontend_primary_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
     	
     	if(message.type == INIT_USER){
+    		sleep(0.5);
     		send_packet(frontend_primary_socket, UPDATE_PORT, 1, strlen(payload)+1 , getTime(), payload );
     	}
 

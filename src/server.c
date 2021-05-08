@@ -247,19 +247,20 @@ void *handle_client_messages(void *arg) {
                pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
 
                
-
-
-
+               
                pthread_mutex_lock(&socket_update_mutex);
                if(profile_list[profile_id].port1 == port){
                   profile_list[profile_id].port1 = -1;
+                  primary_multicast(profile_id ,REMOVE_PORT1, ++sqncnt,1,getTime(),"");
                  
                }
                else{
                   profile_list[profile_id].port2 = -1;
+                  primary_multicast(profile_id ,REMOVE_PORT2, ++sqncnt,1,getTime(),"");
+                  
                }
                pthread_mutex_unlock(&socket_update_mutex);  
-            
+               
                par->flag = 0;
             }
          break;
@@ -293,18 +294,24 @@ void *handle_client_messages(void *arg) {
          break;
 
           case UPDATE_PORT:
+          
             //Frontend port, used so the new backup can connect to this client
             pthread_mutex_lock(&socket_update_mutex);
             port = atoi(message.payload);
             
             if(profile_list[profile_id].port1 == -1){
                profile_list[profile_id].port1 = port;
+               primary_multicast(profile_id ,UPDATE_PORT1, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload);
             }
+            
             else{
                profile_list[profile_id].port2 = port;
+               primary_multicast(profile_id ,UPDATE_PORT2, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload);
+           
             }
 
             pthread_mutex_unlock(&socket_update_mutex);  
+            
          break;
 
          
@@ -409,8 +416,11 @@ void primary_receive_ack(int rm_id){
          printf("Algum backup morreu!\n");  
    }
    else
-   {
-      print_error(message.type != ACK, "Unexpected message\n");
+   {  
+      if(message.type != ACK){
+         printf("Didnt receive ACK, got: %d\n", message.type);
+         exit(1);
+      }
       free(message.payload);
    }      
 }
@@ -422,8 +432,9 @@ void primary_multicast(int userid,int type, int sqn, int len, int timestamp, cha
   
    for(int i=0;i<rm_list_size;i++){
       if(rm_list[i].socket != -1){
-         if (send_packet_with_userid(rm_list[i].socket,userid,type, sqn,len,timestamp,payload))
+         if (send_packet_with_userid(rm_list[i].socket,userid,type, sqn,len,timestamp,payload)){
             primary_receive_ack(i);
+         }
          else 
             rm_list[i].socket = -1;
       }
@@ -536,7 +547,7 @@ int main( int argc, char *argv[] ) {
       //PRIMARY CODE
       if(this_rm.is_primary){
          //ACCEPT
-         print_error((pthread_create(&thr_send_heartbeat, NULL, send_heartbeat, NULL) != 0 ),"Failed to create accept backups thread.\n" );
+         //print_error((pthread_create(&thr_send_heartbeat, NULL, send_heartbeat, NULL) != 0 ),"Failed to create accept backups thread.\n" );
          newsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
          print_error((newsockfd < 0),"ERROR on accept");
 
@@ -630,7 +641,7 @@ int main( int argc, char *argv[] ) {
 
                case NOTIF_CONSUMED:
                   backup_handle_consume(message.userid,atoi(message.payload));
-                  printf("A notification from %s was consumed.\n",profile_list[profile_id].name);
+                  printf("A notification was consumed by %s.\n",profile_list[message.userid].name);
                break;
 
                case ADD_ONLINE:
@@ -642,20 +653,41 @@ int main( int argc, char *argv[] ) {
                   profile_list[message.userid].online--;
                   printf("Subtracted 1 from %s online counter.\n",profile_list[message.userid].name);
                break;
-
+               
+               case REMOVE_PORT1:
+                  profile_list[message.userid].port1 = -1;
+                  //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
+               break;
+               
+               case REMOVE_PORT2:
+                  profile_list[message.userid].port2 = -1;
+                  //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );           
+               break;
+               
+               case UPDATE_PORT1:
+                  profile_list[message.userid].port1 = atoi(message.payload);
+                  //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
+                  
+               break;
+               
+               case UPDATE_PORT2:
+                  profile_list[message.userid].port2 = atoi(message.payload);
+                  //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );
+               break;
+               
                case HEARTBEAT:
                break;
 
              }
              
             
-            free(message.payload);
+            
             backup_send_ack_to_primary();
-           
+            free(message.payload);
 
             save_profiles(profile_list,this_rm.id);
             
-           
+            
             
          }
         
