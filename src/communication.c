@@ -90,8 +90,8 @@ int receive(int sockfd, packet* message)
     		message->payload = (char*) malloc((message->len)*sizeof(char));
     		read(sockfd,message->payload,message->len);
     		message->payload[message->len-1]='\0';
-			if(DEBUG)
-				printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, message->payload);
+			//if(DEBUG)
+				//printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, message->payload);
 		}
 		else
 			message->payload=NULL;

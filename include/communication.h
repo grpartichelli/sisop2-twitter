@@ -24,7 +24,8 @@
 #define ADD_ONLINE 10
 #define SUB_ONLINE 11
 #define NOTIF_CONSUMED 12
-#define HEARTBEAT 13
+#define UPDATE_PORT 13
+#define HEARTBEAT 14
 
 
 

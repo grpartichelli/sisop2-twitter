@@ -18,6 +18,10 @@ typedef struct profile{
  
  int num_pnd_notifs; 
  notif_identifier pnd_notifs[MAX_NOTIFS]; // List of notification identifiers
+
+ int port1;
+ int port2;
+ 
  } profile;
 
 

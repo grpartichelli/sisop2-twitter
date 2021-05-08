@@ -58,6 +58,8 @@ void init_profiles(profile* profile_list){
 	for(int i =0; i<MAX_CLIENTS; i++){
 		profile_list[i].name= "";
 		profile_list[i].online= 0;
+    profile_list[i].port1= -1;
+    profile_list[i].port2= -1;
 	}
 }
 

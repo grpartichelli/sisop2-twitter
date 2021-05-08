@@ -60,6 +60,8 @@ pthread_t thr_send_heartbeat;
 pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER; //Making sure sends can't alter notifications at the same time
 pthread_mutex_t follow_mutex = PTHREAD_MUTEX_INITIALIZER;//Making sure follow can't alter followers at the same time
 pthread_mutex_t online_mutex = PTHREAD_MUTEX_INITIALIZER;//Not subtracting or adding a profile online info at the same time
+
+pthread_mutex_t socket_update_mutex = PTHREAD_MUTEX_INITIALIZER;//Not subtracting or adding a profile online info at the same time
 //CONSUMER BARRIER
 pthread_barrier_t  barriers[MAX_CLIENTS]; 
 
@@ -213,6 +215,7 @@ void *handle_client_messages(void *arg) {
    thread_parameters *par = (thread_parameters *) arg;
    int newsockfd = par->socket;
    int profile_id = par->profile_id;
+   int port;
    /////
    
    packet message;
@@ -235,7 +238,7 @@ void *handle_client_messages(void *arg) {
                pthread_mutex_lock(&online_mutex);
                profile_list[profile_id].online -=1;
             
-            //SENDO RMS
+               //SENDO RMS
                strcpy(payload,profile_list[profile_id].name);
                primary_multicast(profile_id ,SUB_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
                pthread_mutex_unlock(&online_mutex); 
@@ -243,6 +246,19 @@ void *handle_client_messages(void *arg) {
             
                pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
 
+               
+
+
+
+               pthread_mutex_lock(&socket_update_mutex);
+               if(profile_list[profile_id].port1 == port){
+                  profile_list[profile_id].port1 = -1;
+                 
+               }
+               else{
+                  profile_list[profile_id].port2 = -1;
+               }
+               pthread_mutex_unlock(&socket_update_mutex);  
             
                par->flag = 0;
             }
@@ -274,6 +290,21 @@ void *handle_client_messages(void *arg) {
 
 
             pthread_mutex_unlock(&follow_mutex);  
+         break;
+
+          case UPDATE_PORT:
+            //Frontend port, used so the new backup can connect to this client
+            pthread_mutex_lock(&socket_update_mutex);
+            port = atoi(message.payload);
+            
+            if(profile_list[profile_id].port1 == -1){
+               profile_list[profile_id].port1 = port;
+            }
+            else{
+               profile_list[profile_id].port2 = port;
+            }
+
+            pthread_mutex_unlock(&socket_update_mutex);  
          break;
 
          

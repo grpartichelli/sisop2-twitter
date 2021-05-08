@@ -13,6 +13,7 @@
 #include <time.h>
 
 #include "../include/frontend.h"
+int get_frontend_port();
 
 struct hostent *server;
 void *client_to_primary_server(void *arg);
@@ -87,6 +88,8 @@ void *frontend_run(void *arg){
 	bzero(&(serv_addr.sin_zero), 8);     
    
     print_error((connect(frontend_primary_socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
+	//////////////////////////////////////////////
+
 	////////////////////////////////////////////////////////////////////////////////////
   	//CREATE THREADS
     pthread_create(&thr_client_to_primary_server, NULL, client_to_primary_server,NULL);
@@ -100,11 +103,20 @@ void *frontend_run(void *arg){
 void *client_to_primary_server(void *arg){
 	
 	
+	//Warn server of this port
+	char payload[5];
+    sprintf(payload, "%d", get_frontend_port());
+	
 	//Receive message
     packet message;
     while(1){	
     	receive(client_frontend_socket, &message);
     	send_packet(frontend_primary_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
+    	
+    	if(message.type == INIT_USER){
+    		send_packet(frontend_primary_socket, UPDATE_PORT, 1, strlen(payload)+1 , getTime(), payload );
+    	}
+
     	free(message.payload);
    	};
 }
@@ -131,7 +143,7 @@ int get_frontend_port(){
 	//frontend might not have found the port yet, waiting for it to find
 	while(frontend_port == -1);
 
-	printf("ola meu port eh %i", frontend_port);
+	
 
 
 	return frontend_port;
