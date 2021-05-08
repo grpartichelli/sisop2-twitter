@@ -40,8 +40,8 @@ typedef struct packet{
  char* payload;			// Message data
  } packet;
 
-void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* payload);
-void send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, int timestamp, char* payload);
+int send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* payload);
+int send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, int timestamp, char* payload);
 void receive_and_print(int sockfd);
 
 void receive(int sockfd, packet* message);

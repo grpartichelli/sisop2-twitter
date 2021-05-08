@@ -1,43 +1,56 @@
 #include "../include/communication.h"
 
 
-void send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* payload)
+int send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* payload)
 {
-	packet message;
-	message.type = type;
-	message.sqn = sqn;
-	message.len = len;
-	message.timestamp = timestamp;
-	message.userid = -1;
+	int err = 0;
+	socklen_t size = sizeof(int);
+	int is_connected = getsockopt (sockfd, SOL_SOCKET, SO_ERROR, &err, &size);
+	if (is_connected == 0) 
+	{
+	//	printf("it's connected!\n");
+   		packet message;
+		message.type = type;
+		message.sqn = sqn;
+		message.len = len;
+		message.timestamp = timestamp;
+		message.userid = -1;
+
+		//if(DEBUG)
+		//	printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
+
+		write(sockfd,&message,10);
 	
-
-	//if(DEBUG)
-	//	printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
-
-	write(sockfd,&message,10);
-	
-	write(sockfd,payload,strlen(payload));
-
-
+		write(sockfd,payload,strlen(payload));
+		return 1;
+	}
+	//printf("it's not connected!\n");
+	return 0;
 }
 
-void send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, int timestamp, char* payload)
+int send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, int timestamp, char* payload)
 {
-	packet message;
-	message.type = type;
-	message.sqn = sqn;
-	message.len = len;
-	message.timestamp = timestamp;
-	message.userid = userid;
+	int err = 0;
+	socklen_t size = sizeof(int);
+	int is_connected = getsockopt (sockfd, SOL_SOCKET, SO_ERROR, &err, &size);
+	if (is_connected == 0) 
+	{
+		packet message;
+		message.type = type;
+		message.sqn = sqn;
+		message.len = len;
+		message.timestamp = timestamp;
+		message.userid = userid;
 	
-	
+		//if(DEBUG)
+		//	printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
 
-	//if(DEBUG)
-	//	printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
-
-	write(sockfd,&message,10);
+		write(sockfd,&message,10);
 	
-	write(sockfd,payload,strlen(payload));
+		write(sockfd,payload,strlen(payload));
+		return 1;
+	}
+	return 0;
 
 }
 

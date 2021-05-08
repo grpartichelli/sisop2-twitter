@@ -78,16 +78,16 @@ int validate_follow(int follow_id,int profile_id, char *follow_name, int newsock
    // CHECK FOR UNALLOWED FOLLOWERS
    if(follow_id == -1){ //User doesnt exist
       strcpy(payload,"FOLLOW falhou, usuario nao encontrado." );
-      send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-      return 0;
+      if (send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload))
+         return 0;
    }
 
    
    //User trying to follow himself
    if(strcmp(follow_name,profile_list[profile_id].name) == 0 ){
       strcpy(payload,"FOLLOW falhou, voce nao pode se seguir.");
-      send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-      return 0;
+      if(send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload))
+         return 0;
    }
    
 
@@ -97,8 +97,8 @@ int validate_follow(int follow_id,int profile_id, char *follow_name, int newsock
       if(strcmp(profile_list[follow_id].followers[i]->name,profile_list[profile_id].name)==0){
 
          strcpy(payload,"FOLLOW falhou, voce nao pode seguir alguem duas vezes.");
-         send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-         return 0;
+         if(send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload))
+            return 0;
       }
 
    }
@@ -227,22 +227,23 @@ void *handle_client_messages(void *arg) {
 
       switch(message.type)
       {
-         case CMD_QUIT:     
-            send_packet(newsockfd,CMD_QUIT,++sqncnt,1,0,"");
+         case CMD_QUIT:   
+            if(send_packet(newsockfd,CMD_QUIT,++sqncnt,1,0,"")){
            
-            pthread_mutex_lock(&online_mutex);
-            profile_list[profile_id].online -=1;
+               pthread_mutex_lock(&online_mutex);
+               profile_list[profile_id].online -=1;
             
             //SENDO RMS
-            strcpy(payload,profile_list[profile_id].name);
-            primary_multicast(profile_id ,SUB_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
-            pthread_mutex_unlock(&online_mutex); 
+               strcpy(payload,profile_list[profile_id].name);
+               primary_multicast(profile_id ,SUB_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
+               pthread_mutex_unlock(&online_mutex); 
 
             
-            pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
+               pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
 
             
-            par->flag = 0;
+               par->flag = 0;
+            }
          break;
 
          case CMD_SEND: 
@@ -369,8 +370,18 @@ void init_barriers(){
 void primary_receive_ack(int rm_id){
    packet message;
    receive(rm_list[rm_id].socket,&message);
-   print_error(message.type != ACK, "Unexpected message\n");
-   free(message.payload);
+   if(message.payload == NULL)
+   {
+      
+      rm_list[rm_id].socket = -1;
+      if(DEBUG)
+         printf("Algum backup morreu!\n");  
+   }
+   else
+   {
+      print_error(message.type != ACK, "Unexpected message\n");
+      free(message.payload);
+   }      
 }
 
 //send a packet to every socket connect to the primary
@@ -380,8 +391,10 @@ void primary_multicast(int userid,int type, int sqn, int len, int timestamp, cha
   
    for(int i=0;i<rm_list_size;i++){
       if(rm_list[i].socket != -1){
-         send_packet_with_userid(rm_list[i].socket,userid,type, sqn,len,timestamp,payload);  
-         primary_receive_ack(i);
+         if (send_packet_with_userid(rm_list[i].socket,userid,type, sqn,len,timestamp,payload))
+            primary_receive_ack(i);
+         else 
+            rm_list[i].socket = -1;
       }
    }
   
@@ -396,14 +409,18 @@ void primary_send_initial_info(int rm_index){
    //Send every user that exists
    for(int i =0; i<MAX_CLIENTS; i++){
       
-      if(profile_list[i].name != "" && profile_list[i].name[0] == '@'){ 
+      if(profile_list[i].name != "" && profile_list[i].name[0] == '@' && rm_list[rm_index].socket!=-1){ 
          strcpy(payload,profile_list[i].name);
-         send_packet_with_userid(rm_list[rm_index].socket, i ,CREATE_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
-         primary_receive_ack(rm_index);  
+         if(send_packet_with_userid(rm_list[rm_index].socket, i ,CREATE_USER, ++sqncnt,strlen(payload)+1,getTime(),payload))
+            primary_receive_ack(rm_index);  
+         else
+            rm_list[rm_index].socket = -1;
 
          for(int k =0; k<profile_list[i].online;k++){
-            send_packet_with_userid(rm_list[rm_index].socket,i,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
-            primary_receive_ack(rm_index); 
+            if(send_packet_with_userid(rm_list[rm_index].socket,i,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload))
+               primary_receive_ack(rm_index); 
+            else
+               rm_list[rm_index].socket = -1;
          }
       }
       else{
@@ -416,8 +433,10 @@ void primary_send_initial_info(int rm_index){
          //Send who follows the user
          for(int j=0; j<profile_list[i].num_followers;j++){
             strcpy(payload,profile_list[i].followers[j]->name);
-            send_packet_with_userid(rm_list[rm_index].socket, i ,CMD_FOLLOW, ++sqncnt,strlen(payload)+1,getTime(),payload);
-            primary_receive_ack(rm_index);
+            if(send_packet_with_userid(rm_list[rm_index].socket, i ,CMD_FOLLOW, ++sqncnt,strlen(payload)+1,getTime(),payload))
+               primary_receive_ack(rm_index);
+            else
+               rm_list[rm_index].socket = -1;
          }
       }
       else{
@@ -631,7 +650,11 @@ void backup_add_follower(int follower, int followed){
 
 //BACKUP CODE
 void backup_send_ack_to_primary(){
-   send_packet(primary_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack");
+   if(!send_packet(primary_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack"))
+   {
+      primary_rm.socket = -1;
+      // TO-DO: Chamar eleição
+   }
 }
 //this is just for initial configuration of making the rm equal
 void backup_create_user(packet message, int new_user){
@@ -762,7 +785,8 @@ void backup_connect_to_backup(int id){
    bzero(&(serv_addr.sin_zero), 8);     
    
    print_error((connect(rm_list[rm_list_index].socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
-   send_packet(rm_list[rm_list_index].socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id);
+   if(!send_packet(rm_list[rm_list_index].socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id))
+      rm_list[rm_list_index].socket = -1;
    
 }
 //connect to the primary server socket
@@ -779,8 +803,9 @@ void backup_connect_to_primary(){
    bzero(&(serv_addr.sin_zero), 8);     
    
    print_error((connect(primary_rm.socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
-   send_packet(primary_rm.socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id);
-        
+
+   if(!send_packet(primary_rm.socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id))
+      primary_rm.socket = -1;
 }
 
 
