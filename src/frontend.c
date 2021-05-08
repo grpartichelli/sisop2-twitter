@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <netdb.h> 
 #include <signal.h>
+#include <time.h>
 
 #include "../include/frontend.h"
 
@@ -33,7 +34,8 @@ void *frontend_run(void *arg){
 
 	struct sockaddr_in serv_addr,cli_addr;
     int sockfd,yes=1,clilen,found_port=0;
-	int aux_port = 4999;//Default port
+	srand(time(0));
+	int aux_port = (rand() % (5000 - 4050 + 1)) + 4050;//Default port
     
     //CREATE SOCKET
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -47,7 +49,7 @@ void *frontend_run(void *arg){
 
     //FINDING AN AVAILABLE PORT
     while(!found_port){
-    	aux_port++;
+    	aux_port = (rand() % (5000 - 4050 + 1)) + 4050;
 	    //Initializing structure
 	   
 	    serv_addr.sin_port = htons(aux_port);
@@ -128,6 +130,8 @@ int get_frontend_port(){
 
 	//frontend might not have found the port yet, waiting for it to find
 	while(frontend_port == -1);
+
+	printf("ola meu port eh %i", frontend_port);
 
 
 	return frontend_port;
