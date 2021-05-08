@@ -6,7 +6,7 @@ int send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pay
 	int err = 0;
 	socklen_t size = sizeof(int);
 	int is_connected = getsockopt (sockfd, SOL_SOCKET, SO_ERROR, &err, &size);
-	if (is_connected == 0) 
+	if (is_connected == 0 && type >=0 && type <= HEARTBEAT) 
 	{
 	//	printf("it's connected!\n");
    		packet message;
@@ -68,23 +68,36 @@ void receive_and_print(int sockfd)
 	}
 }
 
-void receive(int sockfd, packet* message)
+int receive(int sockfd, packet* message)
 {
+	int read_ = 10;
+	int err = 0;
+	socklen_t size = sizeof(int);
+	int is_connected = getsockopt (sockfd, SOL_SOCKET, SO_ERROR, &err, &size);
+	if (is_connected == 0) 
+	{
+		do
+		{
+			read_ = read(sockfd,message,10);
+		}
+		while(read_<0);
 
-	while(read(sockfd,message,10) < 0)
-    	;
+		if(read_ == 0)
+			return 0;
 
-    if(message->len!=0)
-    {
-    	message->payload = (char*) malloc((message->len)*sizeof(char));
-    	read(sockfd,message->payload,message->len);
-    	message->payload[message->len-1]='\0';
+    	if(message->len!=0)
+    	{
+    		message->payload = (char*) malloc((message->len)*sizeof(char));
+    		read(sockfd,message->payload,message->len);
+    		message->payload[message->len-1]='\0';
+			if(DEBUG)
+				printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, message->payload);
+		}
+		else
+			message->payload=NULL;
+		return 1;
 	}
-	else
-		message->payload=NULL;
-
-	if(DEBUG)
-		printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, message->payload);
+	return 0;
 
 }
 

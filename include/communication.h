@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <stdint.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
 #define CMD_QUIT 1
 #define CMD_SEND 2
@@ -24,6 +24,7 @@
 #define ADD_ONLINE 10
 #define SUB_ONLINE 11
 #define NOTIF_CONSUMED 12
+#define HEARTBEAT 13
 
 
 
@@ -44,7 +45,7 @@ int send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pay
 int send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, int timestamp, char* payload);
 void receive_and_print(int sockfd);
 
-void receive(int sockfd, packet* message);
+int receive(int sockfd, packet* message);
 
 int getTime();
 

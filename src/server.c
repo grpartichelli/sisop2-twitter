@@ -32,6 +32,7 @@ int get_rm_list_index(int id);
 void backup_connect_to_primary();
 void backup_connect_to_backup(int id);
 void *backup_accept_new_backups(void *arg);
+void *send_heartbeat(void *arg);
 void backup_create_user(packet message, int new_user);
 void backup_send_ack_to_primary();
 void backup_add_follower(int follower, int followed);
@@ -53,6 +54,7 @@ struct sockaddr_in serv_addr, cli_addr;
 //THREADS
 pthread_t client_pthread[MAX_CLIENTS*2]; //Each client has two threads, one for consuming and one for producing
 pthread_t thr_backup_accept_backups;
+pthread_t thr_send_heartbeat;
 
 //MUTEX
 pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER; //Making sure sends can't alter notifications at the same time
@@ -369,10 +371,8 @@ void init_barriers(){
 //Wait for an acknowladge from rm_id
 void primary_receive_ack(int rm_id){
    packet message;
-   receive(rm_list[rm_id].socket,&message);
-   if(message.payload == NULL)
-   {
-      
+   if(!receive(rm_list[rm_id].socket,&message))
+   {  
       rm_list[rm_id].socket = -1;
       if(DEBUG)
          printf("Algum backup morreu!\n");  
@@ -505,6 +505,7 @@ int main( int argc, char *argv[] ) {
       //PRIMARY CODE
       if(this_rm.is_primary){
          //ACCEPT
+         print_error((pthread_create(&thr_send_heartbeat, NULL, send_heartbeat, NULL) != 0 ),"Failed to create accept backups thread.\n" );
          newsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
          print_error((newsockfd < 0),"ERROR on accept");
 
@@ -567,9 +568,10 @@ int main( int argc, char *argv[] ) {
          int follower,followed;    
          while(1){
 
-            receive(primary_rm.socket, &message);
+            //if(!
+            receive(primary_rm.socket, &message);//);
+               // TO-DO: call election
             //printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
-
             
             switch(message.type){
                case INIT_BACKUP:
@@ -595,22 +597,24 @@ int main( int argc, char *argv[] ) {
                   printf("%s has sent the message: %s\n",profile_list[message.userid].name, message.payload);
                break;
 
-                case NOTIF_CONSUMED:
-
+               case NOTIF_CONSUMED:
                   backup_handle_consume(message.userid,atoi(message.payload));
                   printf("A notification from %s was consumed.\n",profile_list[profile_id].name);
-
-                   
                break;
 
                case ADD_ONLINE:
                   profile_list[message.userid].online++;
                   printf("Added 1 to %s online counter.\n",profile_list[message.userid].name);
                break;
+
                case SUB_ONLINE:
                   profile_list[message.userid].online--;
                   printf("Subtracted 1 from %s online counter.\n",profile_list[message.userid].name);
                break;
+
+               case HEARTBEAT:
+               break;
+
              }
              
             
@@ -676,6 +680,16 @@ void backup_create_user(packet message, int new_user){
 
 }
 
+void *send_heartbeat(void *arg)
+{
+   packet message;
+
+   while(1)
+   {
+      sleep(1);
+      primary_multicast(-1, HEARTBEAT, ++sqncnt, strlen("Are you alive?")+1, getTime(), "Are you alive?");
+   }
+}
 
 //thread that accepts new backups connections, so that all rms are socket connected
 void *backup_accept_new_backups(void *arg){
@@ -785,7 +799,7 @@ void backup_connect_to_backup(int id){
    bzero(&(serv_addr.sin_zero), 8);     
    
    print_error((connect(rm_list[rm_list_index].socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
-   if(!send_packet(rm_list[rm_list_index].socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id))
+   if(!(rm_list[rm_list_index].socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id))
       rm_list[rm_list_index].socket = -1;
    
 }
