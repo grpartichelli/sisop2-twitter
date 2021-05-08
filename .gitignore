@@ -31,7 +31,6 @@
 *.out
 *.app
 
-*.txt
-
-app_cliente
+*s.txt
+client
 server
