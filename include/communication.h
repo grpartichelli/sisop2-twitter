@@ -7,6 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <poll.h>
 
 #define DEBUG 1
 
@@ -25,7 +26,10 @@
 #define SUB_ONLINE 11
 #define NOTIF_CONSUMED 12
 #define HEARTBEAT 13
-
+#define BULLY_ELECTION 14
+#define BULLY_ANSWER 15
+#define BULLY_COORDINATOR 16
+#define LAST_TYPE_OF_MESSAGE 16
 
 
 
@@ -46,6 +50,7 @@ int send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, 
 void receive_and_print(int sockfd);
 
 int receive(int sockfd, packet* message);
+int receive2(int sockfd, packet* message);
 
 int getTime();
 
