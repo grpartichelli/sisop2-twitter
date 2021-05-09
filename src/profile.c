@@ -1,7 +1,7 @@
 #include "../include/profile.h"
 #include "../include/communication.h"
 
-void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload);
+void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload,int delay);
 
 //Add profile if it doesn't exist, else add to online 
 int handle_profile(profile *profile_list, char *username, int newsockfd, int sqncnt, pthread_mutex_t online_mutex){
@@ -19,8 +19,8 @@ int handle_profile(profile *profile_list, char *username, int newsockfd, int sqn
 
       //AVISA OS RMS
       strcpy(payload,profile_list[profile_id].name);
-      primary_multicast(profile_id ,CREATE_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
-      primary_multicast(profile_id ,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
+      primary_multicast(profile_id ,CREATE_USER, ++sqncnt,strlen(payload)+1,getTime(),payload,0);
+      primary_multicast(profile_id ,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload,0);
 
       if(profile_id == -1){
          printf("MAX NUMBER OF PROFILES REACHED\n");
@@ -41,7 +41,7 @@ int handle_profile(profile *profile_list, char *username, int newsockfd, int sqn
           profile_list[profile_id].online +=1;
 
           strcpy(payload,profile_list[profile_id].name);
-          primary_multicast(profile_id ,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
+          primary_multicast(profile_id ,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload,0);
           pthread_mutex_unlock(&online_mutex);
          
       }
