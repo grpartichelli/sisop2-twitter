@@ -465,7 +465,7 @@ void* receive_bully_messages(void *arg)
    if(DEBUG) ("Receiving bully messages for backup %i\n", i);
    while(1)
    {
-      if(election_started){
+      if(election_started && rm_list[*index].socket!=-1){
 
       
       int received = receive(rm_list[*index].socket,&message);
@@ -702,12 +702,14 @@ int main( int argc, char *argv[] ) {
             }
 
             if(!receive(primary_rm.socket, &message))
-            {  if(!election_started && !election_received && election_done)
-                     bully_election();
-               
+            {  if(!election_started && !election_received)
+               {
+                  if(DEBUG) printf("Starting bully election.\n");
+                  bully_election();
+               }
             }else{
 
-            if(message.userid!=-1 && message.payload)
+            if(message.userid!=(uint16_t)-1 && message.payload)
                printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
             
             switch(message.type){
@@ -946,7 +948,7 @@ void backup_connect_to_backup(int id){
    serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
    bzero(&(serv_addr.sin_zero), 8);     
    
-   if(DEBUG) printf("Connected to backup %i", id);
+   if(DEBUG) printf("Connected to backup %i\n", id);
 
    print_error((connect(rm_list[rm_list_index].socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
    if(!send_packet(rm_list[rm_list_index].socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id))
