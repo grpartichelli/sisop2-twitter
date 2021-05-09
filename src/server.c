@@ -952,7 +952,7 @@ void backup_connect_to_backup(int id){
    server = gethostbyname("localhost");
    //GET FRONTEND_PRIMARY SOCKET
    rm_list[rm_list_index].socket = socket(AF_INET, SOCK_STREAM, 0);
-   if(rm_list[rm_list_index].socket && DEBUG) printf("ERROR opening socket\n");
+   if(rm_list[rm_list_index].socket == -1 && DEBUG) printf("ERROR opening socket\n");
    //print_error(((rm_list[rm_list_index].socket = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
    //CONNECT TO FRONTEND_PRIMARY SOCKET
    serv_addr.sin_family = AF_INET;     
