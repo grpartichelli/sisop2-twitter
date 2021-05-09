@@ -50,7 +50,6 @@ int send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, 
 void receive_and_print(int sockfd);
 
 int receive(int sockfd, packet* message);
-int receive2(int sockfd, packet* message);
 
 int getTime();
 

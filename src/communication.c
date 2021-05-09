@@ -103,35 +103,6 @@ int receive(int sockfd, packet* message)
 
 }
 
-int receive2(int sockfd, packet* message)
-{
-	int read_ = 10;
-	int err = 0;
-	socklen_t size = sizeof(int);
-
-		do
-		{
-			read_ = read(sockfd,message,10);
-		}
-		while(read_<0);
-
-	if(read_ == 0)
-		return 0;
-
-   	if(message->len!=0)
-   	{
-   		message->payload = (char*) malloc((message->len)*sizeof(char));
-   		read(sockfd,message->payload,message->len);
-   		message->payload[message->len-1]='\0';
-
-		if(DEBUG)
-			printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, message->payload);
-	}
-	else
-		message->payload=NULL;
-	return 1;
-}
-
 int non_blocking_receive(int sockfd, packet* message, int timeout)
 {
 	struct pollfd fd;
