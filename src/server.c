@@ -289,7 +289,7 @@ void *handle_client_messages(void *arg) {
          
       }
       
-      free(message.payload);
+      if(message.payload) free(message.payload);
    }
 
 }
@@ -324,7 +324,7 @@ void *handle_client_consumes(void *arg) {
 
             //Send the notification
             send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, str_notif);
-            free(str_notif);
+            if(str_notif) free(str_notif);
              
             //BARRIER FOR CONCURRENT CLIENTS
             pthread_barrier_wait (&barriers[profile_id]);
@@ -390,7 +390,7 @@ void primary_receive_ack(int rm_id){
    else
    {
       print_error(message.type != ACK, "Unexpected message\n");
-      free(message.payload);
+      if(message.payload) free(message.payload);
    }      
 }
 
@@ -492,7 +492,7 @@ void* receive_bully_messages(void *arg)
                if(DEBUG) printf("Answer message sent.");
                break;
          }
-         free(message.payload);
+         if(message.payload) free(message.payload);
       }
       else 
       {
@@ -538,9 +538,9 @@ void bully_election()
          //this_rm.is_primary = 1;
          //primary_rm = this_rm;
          if(DEBUG) printf("Hello I am the primary.\n");
-         for(i = 0; i<rm_list_size; i++)
+         for(i = 0; i < rm_list_size; i++)
          {
-            if(rm_list[i].id > this_rm.id && rm_list[i].id != this_rm.id && 
+            if(rm_list[i].socket != -1 && rm_list[i].id > this_rm.id && rm_list[i].id != this_rm.id && 
             !send_packet_with_userid(rm_list[i].socket,this_rm.socket,BULLY_COORDINATOR, ++sqncnt,strlen("answer")+1,getTime(),"answer"))
             {
                rm_list[i].socket = -1;
@@ -631,7 +631,7 @@ int main( int argc, char *argv[] ) {
             case INIT_USER:
                 //Create or update profile
                 profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
-                free(message.payload);
+                if(message.payload) free(message.payload);
 
 
 
@@ -657,7 +657,7 @@ int main( int argc, char *argv[] ) {
 
             case INIT_BACKUP:
                rm_list_index = get_rm_list_index(atoi(message.payload)); 
-               free(message.payload);  
+               if(message.payload) free(message.payload);  
                
                rm_list[rm_list_index].socket = newsockfd;
                //warn all the other backups this one connected
@@ -693,7 +693,7 @@ int main( int argc, char *argv[] ) {
 
             for(c = 0; c<rm_list_size; c++)
             {  
-               if(!thread_open[rm_list[c].id] && rm_list[c].socket != -1)
+               if(!thread_open[rm_list[c].id] && rm_list[c].socket != -1 && !rm_list[c].is_primary)
                {
                   thread_open[rm_list[c].id] = 1;
                   if(DEBUG) printf("Opened a receiving thread for backup %i\n", rm_list[c].id);
@@ -701,12 +701,14 @@ int main( int argc, char *argv[] ) {
                }
             }
 
-            if(!receive(primary_rm.socket, &message) && !election_started && !election_received && election_done)
-               bully_election();
-            else{
+            if(!receive(primary_rm.socket, &message))
+            {  if(!election_started && !election_received && election_done)
+                     bully_election();
+               
+            }else{
 
-            
-            printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
+            if(message.userid!=-1 && message.payload)
+               printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
             
             switch(message.type){
                case INIT_BACKUP:
@@ -753,10 +755,11 @@ int main( int argc, char *argv[] ) {
              }
              
             backup_send_ack_to_primary();
-            }
+            
 
             save_profiles(profile_list,this_rm.id);
-            free(message.payload);
+            if(message.payload) free(message.payload);
+            }
            
             
          }
@@ -764,7 +767,12 @@ int main( int argc, char *argv[] ) {
       }
       
    }
-	  
+	
+   for(i = 0; i<MAX_CLIENTS; i++)
+   {
+      if(profile_list[i].name)
+         free(profile_list[i].name);
+   }
    close(this_rm.socket);
    printf("Server ended successfully\n");
 
@@ -843,9 +851,8 @@ void *backup_accept_new_backups(void *arg){
          if(DEBUG) printf("Init message received.\n");
 
          int rm_list_index = get_rm_list_index(atoi(message.payload)); 
-         free(message.payload);  
+         if(message.payload) free(message.payload);  
          rm_list[rm_list_index].socket =tempsockfd;
-         rm_list_size++;
       }
    }
   
