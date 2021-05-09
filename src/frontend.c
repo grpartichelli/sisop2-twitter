@@ -18,31 +18,42 @@ int get_frontend_port();
 struct hostent *server;
 void *client_to_primary_server(void *arg);
 void *primary_server_to_client(void *arg);
+void *receive_new_primary(void *arg);
 
 int frontend_port = -1;
 int primary_server_port = - 1;
 int frontend_primary_socket;
 int client_frontend_socket;
 
+
+int sockfds = 0;
+struct sockaddr_in serv_addr,cli_addr;
+int clilen;
+
+pthread_t thr_primary_server_to_client;
+pthread_t thr_client_to_primary_server;
+
 void *frontend_run(void *arg){
 
-	pthread_t thr_primary_server_to_client;
-	pthread_t thr_client_to_primary_server;
+	
+	pthread_t thr_receive_new_primary;
 
 	struct frontend_params *params = (struct frontend_params *) arg;
 	server =  gethostbyname(params->host);
     primary_server_port = params->primary_port;
 
-	struct sockaddr_in serv_addr,cli_addr;
-    int sockfd,yes=1,clilen,found_port=0;
+
+    
+	
+    int yes=1,found_port=0;
 	srand(time(0));
 	int aux_port = (rand() % (5000 - 4050 + 1)) + 4050;//Default port
     
     //CREATE SOCKET
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfds = socket(AF_INET, SOCK_STREAM, 0);
    
     //OPEN SOCKET  
-    print_error((sockfd < 0),"ERROR opening socket\n"); 
+    print_error((sockfds < 0),"ERROR opening socket\n"); 
 
     bzero((char *) &serv_addr, sizeof(serv_addr)); 
 	serv_addr.sin_family = AF_INET;
@@ -56,10 +67,10 @@ void *frontend_run(void *arg){
 	    serv_addr.sin_port = htons(aux_port);
 	    
 	    //BIND TO HOST
-	    print_error((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1),"ERROR on setsockopt\n"); 
+	    print_error((setsockopt(sockfds, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1),"ERROR on setsockopt\n"); 
 	  	 	
 	  	//If the binding fails, we try again in another port.
-	    if( bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) >= 0){
+	    if( bind(sockfds, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) >= 0){
 	    	//If the binding works,set the port
 	  		found_port = 1;
 	    }
@@ -70,10 +81,10 @@ void *frontend_run(void *arg){
 
 	//GET CLIENT_FRONTEND SOCKET
 	//LISTEN
-   	listen(sockfd,5);
+   	listen(sockfds,5);
    	clilen = sizeof(cli_addr);
    	//ACCEPT
-	client_frontend_socket = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
+	client_frontend_socket = accept(sockfds, (struct sockaddr *)&cli_addr, &clilen);
     print_error((client_frontend_socket < 0),"ERROR on accept\n");
 
 
@@ -94,15 +105,40 @@ void *frontend_run(void *arg){
   	//CREATE THREADS
     pthread_create(&thr_client_to_primary_server, NULL, client_to_primary_server,NULL);
     pthread_create(&thr_primary_server_to_client, NULL, primary_server_to_client,NULL);
+    pthread_create(&thr_receive_new_primary, NULL, receive_new_primary,NULL);
     pthread_join(thr_client_to_primary_server,NULL);
     pthread_join(thr_primary_server_to_client, NULL);
+    pthread_join(thr_receive_new_primary, NULL);
 
 }
+
+
+
+//Send the messages from the client to the server
+void *receive_new_primary(void *arg){
+	
+	
+	//Receive message
+    while(1){	
+    	//GET NEW PRIMARY
+    	frontend_primary_socket = accept(sockfds, (struct sockaddr *)&cli_addr, &clilen);
+        print_error((primary_server_port < 0),"ERROR on accept");
+
+        pthread_cancel(thr_client_to_primary_server);
+        pthread_cancel(thr_primary_server_to_client);
+
+        pthread_create(&thr_client_to_primary_server, NULL, client_to_primary_server,NULL);
+   		pthread_create(&thr_primary_server_to_client, NULL, primary_server_to_client,NULL);
+   		pthread_join(thr_client_to_primary_server,NULL);
+    	pthread_join(thr_primary_server_to_client, NULL);
+   	};
+}
+
 
 //Send the messages from the client to the server
 void *client_to_primary_server(void *arg){
 	
-	
+
 	//Warn server of this port
 	char payload[5];
     sprintf(payload, "%d", get_frontend_port());
