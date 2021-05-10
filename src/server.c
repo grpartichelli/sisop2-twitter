@@ -449,8 +449,9 @@ void primary_multicast(int userid,int type, int sqn, int len, int timestamp, cha
          if (send_packet_with_userid(rm_list[i].socket,userid,type, sqn,len,timestamp,payload)){
             primary_receive_ack(i);
          }
-         else 
+         else{
             rm_list[i].socket = -1;
+         }
          sleep(delay);
       }
    }
@@ -633,8 +634,7 @@ int main( int argc, char *argv[] ) {
        
           while(1){    
             //ACCEPT
-            //print_error((pthread_create(&thr_send_heartbeat, NULL, send_heartbeat, NULL) != 0 ),"Failed to create accept backups thread.\n" );
-            newsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
+             newsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
             print_error((newsockfd < 0),"ERROR on accept");
           
             //Receive message
