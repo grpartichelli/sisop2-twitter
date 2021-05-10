@@ -7,6 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <poll.h>
 
 #define DEBUG 1
 
@@ -31,7 +32,15 @@
 #define REMOVE_PORT2 15
 #define UPDATE_PORT1 16
 #define UPDATE_PORT2 17
-#define HEARTBEAT 50
+
+#define HEARTBEAT 18
+
+#define BULLY_ELECTION 19
+#define BULLY_ANSWER 20
+#define BULLY_COORDINATOR 21
+#define LAST_TYPE_OF_MESSAGE 22
+
+
 
 
 

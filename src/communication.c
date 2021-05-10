@@ -6,7 +6,7 @@ int send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pay
 	int err = 0;
 	socklen_t size = sizeof(int);
 	int is_connected = getsockopt (sockfd, SOL_SOCKET, SO_ERROR, &err, &size);
-	if (is_connected == 0 && type >=0 && type <= HEARTBEAT) 
+	if (is_connected == 0 && type >=0 && type <= LAST_TYPE_OF_MESSAGE) 
 	{
 	//	printf("it's connected!\n");
    		packet message;
@@ -82,6 +82,53 @@ int receive(int sockfd, packet* message)
 		}
 		while(read_<0);
 
+
+		if(read_ == 0)
+			return 0;
+
+
+    	if(message->len!=0)
+    	{
+    		message->payload = (char*) malloc((message->len)*sizeof(char));
+    		read(sockfd,message->payload,message->len);
+    		message->payload[message->len-1]='\0';
+			if(DEBUG) 
+				printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, message->payload);
+		}
+		else
+			message->payload=NULL;
+		return 1;
+	}
+	return 0;
+
+}
+
+int non_blocking_receive(int sockfd, packet* message, int timeout)
+{
+	struct pollfd fd;
+	int ret;
+	int read_ = 10;
+	int err = 0;
+	socklen_t size = sizeof(int);
+	int is_connected = getsockopt (sockfd, SOL_SOCKET, SO_ERROR, &err, &size);
+	if (is_connected == 0) 
+	{
+		fd.fd = sockfd; // your socket handler 
+		fd.events = POLLIN;
+		ret = poll(&fd, 1, 1000); // 1 second for timeout
+		switch (ret) 
+		{
+    		case -1:
+        		return 0;
+        		break;
+    		case 0:
+    		    return 0;
+    		    break;
+    		default:
+    		    read_ = read(sockfd,message,10); // get your data
+    		    break;
+		}
+
 		if(read_ == 0)
 			return 0;
 
@@ -95,6 +142,7 @@ int receive(int sockfd, packet* message)
 		}
 		else
 			message->payload=NULL;
+
 		return 1;
 	}
 	return 0;
