@@ -566,9 +566,8 @@ int main( int argc, char *argv[] ) {
    listen(this_rm.socket,5);
    clilen = sizeof(cli_addr);
 
-   if(this_rm.is_primary){
-         print_error((pthread_create(&thr_send_heartbeat, NULL, send_heartbeat, NULL) != 0 ),"Failed to create accept backups thread.\n" );
-   }
+ 
+    
 
    while(1){
       signal(SIGINT, intHandler); //detect ctrl+c
@@ -576,6 +575,7 @@ int main( int argc, char *argv[] ) {
 
       //PRIMARY CODE
       if(this_rm.is_primary){
+         print_error((pthread_create(&thr_send_heartbeat, NULL, send_heartbeat, NULL) != 0 ),"Failed to create accept backups thread.\n" );
 
          server = gethostbyname("localhost");         
          serv_addr.sin_family = AF_INET;     
@@ -721,15 +721,15 @@ int main( int argc, char *argv[] ) {
             if(!receive(primary_rm.socket, &message))
             {  
                sleep(0.1*this_rm.id*5);
-               if(!election_started && !election_received && election_done)
+               if(!election_started && !election_received)
                {
                   if(DEBUG) printf("Starting bully election.\n");
                   bully_election();
                }
             }else{
 
-            if(message.userid!=(uint16_t)-1 && message.payload)
-               printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
+           // if(message.userid!=(uint16_t)-1 && message.payload)
+               //printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
             
             switch(message.type){
                case INIT_BACKUP:
@@ -940,6 +940,7 @@ void bully_election()
         
          for(int i=0;i<MAX_RMS;i++){
             if(thread_open[i]){
+               printf("I DELETED THIS THREAD!\n");
                pthread_cancel(thr_bully_receive[i]);
             }  
          }

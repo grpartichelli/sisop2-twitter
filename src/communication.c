@@ -16,8 +16,8 @@ int send_packet(int sockfd, int type, int sqn, int len, int timestamp, char* pay
 		message.timestamp = timestamp;
 		message.userid = -1;
 
-		//if(DEBUG)
-		//	printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
+		if(DEBUG)
+			printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
 
 		write(sockfd,&message,10);
 	
@@ -42,8 +42,8 @@ int send_packet_with_userid(int sockfd, int userid, int type, int sqn, int len, 
 		message.timestamp = timestamp;
 		message.userid = userid;
 	
-		//if(DEBUG)
-		//	printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
+		if(DEBUG)
+			printf("Enviado %i, %i, %i, %i, %s.\n", message.type, message.sqn, message.len, message.timestamp, payload);
 
 		write(sockfd,&message,10);
 	
@@ -137,8 +137,8 @@ int non_blocking_receive(int sockfd, packet* message, int timeout)
     		message->payload = (char*) malloc((message->len)*sizeof(char));
     		read(sockfd,message->payload,message->len);
     		message->payload[message->len-1]='\0';
-			//if(DEBUG)
-				//printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, message->payload);
+			if(DEBUG)
+				printf("Recebido %i, %i, %i, %i, %s\n", message->type, message->sqn, message->len, message->timestamp, message->payload);
 		}
 		else
 			message->payload=NULL;
