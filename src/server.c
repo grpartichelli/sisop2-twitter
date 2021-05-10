@@ -261,12 +261,12 @@ void *handle_client_messages(void *arg) {
                pthread_mutex_lock(&socket_update_mutex);
                if(profile_list[profile_id].port1 == port){
                   profile_list[profile_id].port1 = -1;
-                  primary_multicast(profile_id ,REMOVE_PORT1, ++sqncnt,1,getTime(),"");
+                  primary_multicast(profile_id ,REMOVE_PORT1, ++sqncnt,1,getTime(),"",0);
                  
                }
                else{
                   profile_list[profile_id].port2 = -1;
-                  primary_multicast(profile_id ,REMOVE_PORT2, ++sqncnt,1,getTime(),"");
+                  primary_multicast(profile_id ,REMOVE_PORT2, ++sqncnt,1,getTime(),"",0);
                   
                }
                pthread_mutex_unlock(&socket_update_mutex);  
@@ -311,12 +311,12 @@ void *handle_client_messages(void *arg) {
             
             if(profile_list[profile_id].port1 == -1){
                profile_list[profile_id].port1 = port;
-               primary_multicast(profile_id ,UPDATE_PORT1, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload);
+               primary_multicast(profile_id ,UPDATE_PORT1, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload,0);
             }
             
             else{
                profile_list[profile_id].port2 = port;
-               primary_multicast(profile_id ,UPDATE_PORT2, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload);
+               primary_multicast(profile_id ,UPDATE_PORT2, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload,0);
            
             }
 
@@ -791,7 +791,7 @@ int main( int argc, char *argv[] ) {
                   rm_list[rm_list_index].socket = newsockfd;
                   //warn all the other backups this one connected
                   
-                  primary_multicast(-1,INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id);
+                  primary_multicast(-1,INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id,0);
                   
                   
                   //send all initial info to this backup
