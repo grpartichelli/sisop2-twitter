@@ -32,6 +32,7 @@ int get_rm_list_index(int id);
 void backup_connect_to_primary();
 void backup_connect_to_backup(int id);
 void *backup_accept_new_backups(void *arg);
+void *send_heartbeat(void *arg);
 void backup_create_user(packet message, int new_user);
 void backup_send_ack_to_primary();
 void backup_add_follower(int follower, int followed);
@@ -53,11 +54,14 @@ struct sockaddr_in serv_addr, cli_addr;
 //THREADS
 pthread_t client_pthread[MAX_CLIENTS*2]; //Each client has two threads, one for consuming and one for producing
 pthread_t thr_backup_accept_backups;
+pthread_t thr_send_heartbeat;
 
 //MUTEX
 pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER; //Making sure sends can't alter notifications at the same time
 pthread_mutex_t follow_mutex = PTHREAD_MUTEX_INITIALIZER;//Making sure follow can't alter followers at the same time
 pthread_mutex_t online_mutex = PTHREAD_MUTEX_INITIALIZER;//Not subtracting or adding a profile online info at the same time
+
+pthread_mutex_t socket_update_mutex = PTHREAD_MUTEX_INITIALIZER;//Not subtracting or adding a profile online info at the same time
 //CONSUMER BARRIER
 pthread_barrier_t  barriers[MAX_CLIENTS]; 
 
@@ -78,16 +82,16 @@ int validate_follow(int follow_id,int profile_id, char *follow_name, int newsock
    // CHECK FOR UNALLOWED FOLLOWERS
    if(follow_id == -1){ //User doesnt exist
       strcpy(payload,"FOLLOW falhou, usuario nao encontrado." );
-      send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-      return 0;
+      if (send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload))
+         return 0;
    }
 
    
    //User trying to follow himself
    if(strcmp(follow_name,profile_list[profile_id].name) == 0 ){
       strcpy(payload,"FOLLOW falhou, voce nao pode se seguir.");
-      send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-      return 0;
+      if(send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload))
+         return 0;
    }
    
 
@@ -97,8 +101,8 @@ int validate_follow(int follow_id,int profile_id, char *follow_name, int newsock
       if(strcmp(profile_list[follow_id].followers[i]->name,profile_list[profile_id].name)==0){
 
          strcpy(payload,"FOLLOW falhou, voce nao pode seguir alguem duas vezes.");
-         send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload); 
-         return 0;
+         if(send_packet(newsockfd,CMD_FOLLOW,++sqncnt,strlen(payload)+1,0,payload))
+            return 0;
       }
 
    }
@@ -211,6 +215,7 @@ void *handle_client_messages(void *arg) {
    thread_parameters *par = (thread_parameters *) arg;
    int newsockfd = par->socket;
    int profile_id = par->profile_id;
+   int port;
    /////
    
    packet message;
@@ -218,31 +223,46 @@ void *handle_client_messages(void *arg) {
    notification *notif ;
    
  
-
+  
    signal(SIGINT, intHandler); //detect ctrl+c
    while(par->flag){
-      
+         
       //READ
       receive(newsockfd, &message);
-
+      printf("%s",message.payload);
       switch(message.type)
       {
-         case CMD_QUIT:     
-            send_packet(newsockfd,CMD_QUIT,++sqncnt,1,0,"");
+         case CMD_QUIT:   
+            if(send_packet(newsockfd,CMD_QUIT,++sqncnt,1,0,"")){
            
-            pthread_mutex_lock(&online_mutex);
-            profile_list[profile_id].online -=1;
+               pthread_mutex_lock(&online_mutex);
+               profile_list[profile_id].online -=1;
             
-            //SENDO RMS
-            strcpy(payload,profile_list[profile_id].name);
-            primary_multicast(profile_id ,SUB_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
-            pthread_mutex_unlock(&online_mutex); 
+               //SENDO RMS
+               strcpy(payload,profile_list[profile_id].name);
+               primary_multicast(profile_id ,SUB_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
+               pthread_mutex_unlock(&online_mutex); 
 
             
-            pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
+               pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
 
-            
-            par->flag = 0;
+               
+               
+               pthread_mutex_lock(&socket_update_mutex);
+               if(profile_list[profile_id].port1 == port){
+                  profile_list[profile_id].port1 = -1;
+                  primary_multicast(profile_id ,REMOVE_PORT1, ++sqncnt,1,getTime(),"");
+                 
+               }
+               else{
+                  profile_list[profile_id].port2 = -1;
+                  primary_multicast(profile_id ,REMOVE_PORT2, ++sqncnt,1,getTime(),"");
+                  
+               }
+               pthread_mutex_unlock(&socket_update_mutex);  
+               
+               par->flag = 0;
+            }
          break;
 
          case CMD_SEND: 
@@ -271,6 +291,27 @@ void *handle_client_messages(void *arg) {
 
 
             pthread_mutex_unlock(&follow_mutex);  
+         break;
+
+          case UPDATE_PORT:
+          
+            //Frontend port, used so the new backup can connect to this client
+            pthread_mutex_lock(&socket_update_mutex);
+            port = atoi(message.payload);
+            
+            if(profile_list[profile_id].port1 == -1){
+               profile_list[profile_id].port1 = port;
+               primary_multicast(profile_id ,UPDATE_PORT1, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload);
+            }
+            
+            else{
+               profile_list[profile_id].port2 = port;
+               primary_multicast(profile_id ,UPDATE_PORT2, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload);
+           
+            }
+
+            pthread_mutex_unlock(&socket_update_mutex);  
+            
          break;
 
          
@@ -368,9 +409,20 @@ void init_barriers(){
 //Wait for an acknowladge from rm_id
 void primary_receive_ack(int rm_id){
    packet message;
-   receive(rm_list[rm_id].socket,&message);
-   print_error(message.type != ACK, "Unexpected message\n");
-   free(message.payload);
+   if(!receive(rm_list[rm_id].socket,&message))
+   {  
+      rm_list[rm_id].socket = -1;
+      if(DEBUG)
+         printf("Algum backup morreu!\n");  
+   }
+   else
+   {  
+      if(message.type != ACK){
+         printf("Didnt receive ACK, got: %d\n", message.type);
+         exit(1);
+      }
+      free(message.payload);
+   }      
 }
 
 //send a packet to every socket connect to the primary
@@ -380,8 +432,11 @@ void primary_multicast(int userid,int type, int sqn, int len, int timestamp, cha
   
    for(int i=0;i<rm_list_size;i++){
       if(rm_list[i].socket != -1){
-         send_packet_with_userid(rm_list[i].socket,userid,type, sqn,len,timestamp,payload);  
-         primary_receive_ack(i);
+         if (send_packet_with_userid(rm_list[i].socket,userid,type, sqn,len,timestamp,payload)){
+            primary_receive_ack(i);
+         }
+         else 
+            rm_list[i].socket = -1;
       }
    }
   
@@ -396,14 +451,18 @@ void primary_send_initial_info(int rm_index){
    //Send every user that exists
    for(int i =0; i<MAX_CLIENTS; i++){
       
-      if(profile_list[i].name != "" && profile_list[i].name[0] == '@'){ 
+      if(profile_list[i].name != "" && profile_list[i].name[0] == '@' && rm_list[rm_index].socket!=-1){ 
          strcpy(payload,profile_list[i].name);
-         send_packet_with_userid(rm_list[rm_index].socket, i ,CREATE_USER, ++sqncnt,strlen(payload)+1,getTime(),payload);
-         primary_receive_ack(rm_index);  
+         if(send_packet_with_userid(rm_list[rm_index].socket, i ,CREATE_USER, ++sqncnt,strlen(payload)+1,getTime(),payload))
+            primary_receive_ack(rm_index);  
+         else
+            rm_list[rm_index].socket = -1;
 
          for(int k =0; k<profile_list[i].online;k++){
-            send_packet_with_userid(rm_list[rm_index].socket,i,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
-            primary_receive_ack(rm_index); 
+            if(send_packet_with_userid(rm_list[rm_index].socket,i,ADD_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload))
+               primary_receive_ack(rm_index); 
+            else
+               rm_list[rm_index].socket = -1;
          }
       }
       else{
@@ -416,9 +475,25 @@ void primary_send_initial_info(int rm_index){
          //Send who follows the user
          for(int j=0; j<profile_list[i].num_followers;j++){
             strcpy(payload,profile_list[i].followers[j]->name);
-            send_packet_with_userid(rm_list[rm_index].socket, i ,CMD_FOLLOW, ++sqncnt,strlen(payload)+1,getTime(),payload);
-            primary_receive_ack(rm_index);
+            if(send_packet_with_userid(rm_list[rm_index].socket, i ,CMD_FOLLOW, ++sqncnt,strlen(payload)+1,getTime(),payload))
+               primary_receive_ack(rm_index);
+            else
+               rm_list[rm_index].socket = -1;
          }
+
+
+         sprintf(payload, "%d", profile_list[i].port1);
+         if(send_packet_with_userid(rm_list[rm_index].socket, i ,UPDATE_PORT1, ++sqncnt,strlen(payload)+1,getTime(),payload))
+               primary_receive_ack(rm_index);
+            else
+               rm_list[rm_index].socket = -1;
+
+         sprintf(payload, "%d", profile_list[i].port2);
+         if(send_packet_with_userid(rm_list[rm_index].socket, i ,UPDATE_PORT2, ++sqncnt,strlen(payload)+1,getTime(),payload))
+               primary_receive_ack(rm_index);
+            else
+               rm_list[rm_index].socket = -1;
+
       }
       else{
          return;
@@ -440,7 +515,7 @@ int main( int argc, char *argv[] ) {
    printf("ID: %d, PORT: %d ", this_rm.id, this_rm.port);
    if(this_rm.is_primary){printf("TYPE: PRIMARY\n");} else{printf("TYPE: BACKUP\n");}
 
-
+   struct hostent *server;
    int i=0,profile_id, rm_list_index;
    int newsockfd, portno;
    int yes =1;
@@ -485,72 +560,128 @@ int main( int argc, char *argv[] ) {
 
       //PRIMARY CODE
       if(this_rm.is_primary){
-         //ACCEPT
-         newsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
-         print_error((newsockfd < 0),"ERROR on accept");
+         server = gethostbyname("localhost");         
+         serv_addr.sin_family = AF_INET;     
+         serv_addr.sin_port = htons(primary_rm.port);    
+         serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
+         bzero(&(serv_addr.sin_zero), 8); 
+      
+         for(int p_id =0; p_id<MAX_CLIENTS;p_id++){
 
-         //Receive message
-         receive(newsockfd, &message);
-         switch(message.type){
-            case INIT_USER:
-                //Create or update profile
-                profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
-                free(message.payload);
-
-
-
-                //SAVE PROFILES
-                save_profiles(profile_list,this_rm.id);
-
-               if(profile_id != -1){
+        
+               if(profile_list[p_id].port1 != -1){    
+                  int new_socket = socket(AF_INET, SOCK_STREAM, 0);
+                  serv_addr.sin_port = htons(profile_list[p_id].port1);    
+                  print_error((connect(new_socket, (struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
+                   
                   //Update barrier in case number of online user changed
-                  pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
-                  
-
+                  pthread_barrier_init (&barriers[p_id], NULL, profile_list[p_id].online);
+                     
                   //LOAD PARAMETERS FOR THREADS
-                  parameters[i].profile_id = profile_id;
-                  parameters[i].socket = newsockfd;
+                  parameters[i].profile_id = p_id;
+                  parameters[i].socket = new_socket;
                   parameters[i].flag = 1;
-                  
+                     
                   //One thread consumes notifications, the other reads user input
                   print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
                   print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
                   i+=2;
+                  
+                 
                }
-            break;
 
-            case INIT_BACKUP:
-               rm_list_index = get_rm_list_index(atoi(message.payload)); 
-               free(message.payload);  
-               
-               rm_list[rm_list_index].socket = newsockfd;
-               //warn all the other backups this one connected
-               
-               primary_multicast(-1,INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id);
-               
-               
-               //send all initial info to this backup
-               primary_send_initial_info(rm_list_index);
+               if(profile_list[p_id].port2 != -1){    
+                  int new_socket = socket(AF_INET, SOCK_STREAM, 0);
+                  serv_addr.sin_port = htons(profile_list[p_id].port2 );    
+                  print_error((connect(new_socket, (struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
+                   
+                  //Update barrier in case number of online user changed
+                  pthread_barrier_init (&barriers[p_id], NULL, profile_list[p_id].online);
+                     
+                  //LOAD PARAMETERS FOR THREADS
+                  parameters[i].profile_id = p_id;
+                  parameters[i].socket = new_socket;
+                  parameters[i].flag = 1;
+                     
+                  //One thread consumes notifications, the other reads user input
+                  print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
+                  print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
+                  i+=2;
+                          
+               }
+            }
+         
+          
+          while(1){    
+            //ACCEPT
+            //print_error((pthread_create(&thr_send_heartbeat, NULL, send_heartbeat, NULL) != 0 ),"Failed to create accept backups thread.\n" );
+            newsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
+            print_error((newsockfd < 0),"ERROR on accept");
+          
+            //Receive message
+            receive(newsockfd, &message);
+            switch(message.type){
+               case INIT_USER:
+                   //Create or update profile
+                   profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
+                   free(message.payload);
 
-            break;   
+
+
+                   //SAVE PROFILES
+                   save_profiles(profile_list,this_rm.id);
+
+                  if(profile_id != -1){
+                     //Update barrier in case number of online user changed
+                     pthread_barrier_init (&barriers[profile_id], NULL, profile_list[profile_id].online);
+                     
+
+                     //LOAD PARAMETERS FOR THREADS
+                     parameters[i].profile_id = profile_id;
+                     parameters[i].socket = newsockfd;
+                     parameters[i].flag = 1;
+                     
+                     //One thread consumes notifications, the other reads user input
+                     print_error((pthread_create(&client_pthread[i], NULL, handle_client_messages, &parameters[i]) != 0 ), "Failed to create handle client messages thread\n");
+                     print_error((pthread_create(&client_pthread[i+1], NULL, handle_client_consumes, &parameters[i]) != 0 ),"Failed to create consume thread.\n" );
+                     i+=2;
+                  }
+               break;
+
+               case INIT_BACKUP:
+                  rm_list_index = get_rm_list_index(atoi(message.payload)); 
+                  free(message.payload);  
+                  
+                  rm_list[rm_list_index].socket = newsockfd;
+                  //warn all the other backups this one connected
+                  
+                  primary_multicast(-1,INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id);
+                  
+                  
+                  //send all initial info to this backup
+                  primary_send_initial_info(rm_list_index);
+
+               break;   
+            }
+
          }
-
-
 
       /////////////////////////////////////
       } else{//BACKUP CODE
-
+         
+         int count = 0;
          backup_connect_to_primary();
 
          //create thread that will accept new backups
          print_error((pthread_create(&thr_backup_accept_backups, NULL, backup_accept_new_backups, NULL) != 0 ),"Failed to create accept backups thread.\n" );
          
          int follower,followed;    
-         while(1){
+         while(!this_rm.is_primary){
 
-            receive(primary_rm.socket, &message);
+            //if(!
+            receive(primary_rm.socket, &message);//);
+               // TO-DO: call election
             //printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
-
             
             switch(message.type){
                case INIT_BACKUP:
@@ -576,35 +707,68 @@ int main( int argc, char *argv[] ) {
                   printf("%s has sent the message: %s\n",profile_list[message.userid].name, message.payload);
                break;
 
-                case NOTIF_CONSUMED:
-
+               case NOTIF_CONSUMED:
                   backup_handle_consume(message.userid,atoi(message.payload));
-                  printf("A notification from %s was consumed.\n",profile_list[profile_id].name);
-
-                   
+                  printf("A notification was consumed by %s.\n",profile_list[message.userid].name);
                break;
 
                case ADD_ONLINE:
                   profile_list[message.userid].online++;
                   printf("Added 1 to %s online counter.\n",profile_list[message.userid].name);
                break;
+
                case SUB_ONLINE:
                   profile_list[message.userid].online--;
                   printf("Subtracted 1 from %s online counter.\n",profile_list[message.userid].name);
                break;
+               
+               case REMOVE_PORT1:
+                  profile_list[message.userid].port1 = -1;
+                  //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
+               break;
+               
+               case REMOVE_PORT2:
+                  profile_list[message.userid].port2 = -1;
+                  //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );           
+               break;
+               
+               case UPDATE_PORT1:
+                  profile_list[message.userid].port1 = atoi(message.payload);
+                 //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
+                  
+               break;
+               
+               case UPDATE_PORT2:
+                  profile_list[message.userid].port2 = atoi(message.payload);
+                  //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );
+               break;
+               
+               case HEARTBEAT:
+               break;
+
              }
+
+            
              
             
-            free(message.payload);
+            printf("Count %d\n",count);
+            count++;
             backup_send_ack_to_primary();
-           
+            free(message.payload);
 
             save_profiles(profile_list,this_rm.id);
             
-           
+            if(count == 18){
+               pthread_cancel(thr_backup_accept_backups);
+               this_rm.is_primary = 1;
+            }
+      
+            
+            
             
          }
-        
+         
+
       }
       
    }
@@ -631,7 +795,11 @@ void backup_add_follower(int follower, int followed){
 
 //BACKUP CODE
 void backup_send_ack_to_primary(){
-   send_packet(primary_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack");
+   if(!send_packet(primary_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack"))
+   {
+      primary_rm.socket = -1;
+      // TO-DO: Chamar eleição
+   }
 }
 //this is just for initial configuration of making the rm equal
 void backup_create_user(packet message, int new_user){
@@ -653,6 +821,16 @@ void backup_create_user(packet message, int new_user){
 
 }
 
+void *send_heartbeat(void *arg)
+{
+   packet message;
+
+   while(1)
+   {
+      sleep(1);
+      primary_multicast(-1, HEARTBEAT, ++sqncnt, strlen("Are you alive?")+1, getTime(), "Are you alive?");
+   }
+}
 
 //thread that accepts new backups connections, so that all rms are socket connected
 void *backup_accept_new_backups(void *arg){
@@ -762,7 +940,8 @@ void backup_connect_to_backup(int id){
    bzero(&(serv_addr.sin_zero), 8);     
    
    print_error((connect(rm_list[rm_list_index].socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
-   send_packet(rm_list[rm_list_index].socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id);
+   if(!(rm_list[rm_list_index].socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id))
+      rm_list[rm_list_index].socket = -1;
    
 }
 //connect to the primary server socket
@@ -779,8 +958,9 @@ void backup_connect_to_primary(){
    bzero(&(serv_addr.sin_zero), 8);     
    
    print_error((connect(primary_rm.socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
-   send_packet(primary_rm.socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id);
-        
+
+   if(!send_packet(primary_rm.socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id))
+      primary_rm.socket = -1;
 }
 
 
