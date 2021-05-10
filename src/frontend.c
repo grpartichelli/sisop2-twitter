@@ -146,15 +146,26 @@ void *client_to_primary_server(void *arg){
 	//Receive message
     packet message;
     while(1){	
-    	receive(client_frontend_socket, &message);
-    	send_packet(frontend_primary_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
     	
-    	if(message.type == INIT_USER){
-    		sleep(0.5);
-    		send_packet(frontend_primary_socket, UPDATE_PORT, 1, strlen(payload)+1 , getTime(), payload );
-    	}
+        if(receive(client_frontend_socket, &message)){
+            if(send_packet(frontend_primary_socket,message.type, message.sqn, message.len, message.timestamp,message.payload)){
+                
 
-    	free(message.payload);
+                if(message.type == INIT_USER){
+                    sleep(0.5);
+                    send_packet(frontend_primary_socket, UPDATE_PORT, 1, strlen(payload)+1 , getTime(), payload );
+                }
+
+                free(message.payload);
+              
+            }
+        }
+    	
+        
+    	
+    	
+
+    	
    	};
 }
 
@@ -166,9 +177,13 @@ void *primary_server_to_client(void *arg){
 	//Receive message
     packet message;
     while(1){
-    	receive(frontend_primary_socket, &message);
-    	send_packet(client_frontend_socket,message.type, message.sqn, message.len, message.timestamp,message.payload);
-    	free(message.payload);
+    	if(receive(frontend_primary_socket, &message)){
+            if(send_packet(client_frontend_socket,message.type, message.sqn, message.len, message.timestamp,message.payload)){
+                free(message.payload);
+            }
+        
+        }
+    	
     	
     	
    	};
