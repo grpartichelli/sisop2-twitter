@@ -17,6 +17,7 @@
 #define NOTIF 4
 #define SRV_MSG 5
 #define	INIT_USER 6 
+#define UPDATE_PORT 13
 
 //Communication between RMs
 #define ACK 7
@@ -25,11 +26,22 @@
 #define ADD_ONLINE 10
 #define SUB_ONLINE 11
 #define NOTIF_CONSUMED 12
-#define HEARTBEAT 13
-#define BULLY_ELECTION 14
-#define BULLY_ANSWER 15
-#define BULLY_COORDINATOR 16
-#define LAST_TYPE_OF_MESSAGE 16
+
+
+#define REMOVE_PORT1 14
+#define REMOVE_PORT2 15
+#define UPDATE_PORT1 16
+#define UPDATE_PORT2 17
+
+#define HEARTBEAT 18
+
+#define BULLY_ELECTION 19
+#define BULLY_ANSWER 20
+#define BULLY_COORDINATOR 21
+#define LAST_TYPE_OF_MESSAGE 22
+
+
+
 
 
 

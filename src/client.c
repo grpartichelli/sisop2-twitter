@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
 	serv_addr.sin_port = htons(frontend_port);    
 	serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
 	bzero(&(serv_addr.sin_zero), 8);     
-    
+  
     print_error((connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
 	
     
