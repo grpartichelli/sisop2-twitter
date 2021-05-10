@@ -848,6 +848,13 @@ void* receive_bully_messages(void *arg)
             {
                case BULLY_COORDINATOR:
                   coordinator_received = message.userid;
+                  int id = get_rm_list_index(coordinator_received);
+                  for(int i=0;i<MAX_RMS;i++){
+                        if(thread_open[i] && rm_list[i].id == id){
+                           printf("I DELETED THIS THREAD!\n");
+                           pthread_cancel(thr_bully_receive[i]);
+                        }  
+                  }
                   if(DEBUG) printf("Coordinator message received from %i.\n", message.userid);
                   break;
 
@@ -869,7 +876,7 @@ void* receive_bully_messages(void *arg)
                case ACK:
                break;
                default:
-                  printf("Unexpected message\n");
+                  printf("Uuuuuuuunexpected message\n");
             }
             if(message.payload) free(message.payload);
          }
@@ -909,6 +916,7 @@ void bully_election()
    if(coordinator_received)
    {
       int id = get_rm_list_index(coordinator_received);
+
       primary_rm.id  = rm_list[id].id;
       primary_rm.socket = rm_list[id].socket;
       strcpy(primary_rm.string_id,rm_list[id].string_id);
@@ -949,18 +957,17 @@ void bully_election()
       }
       else
       {
-         sleep(1);
+         sleep(5);
          if(coordinator_received)
          {
-            //int id = get_rm_list_index(coordinator_received);
-            //primary_rm = rm_list[id];
-
             int id = get_rm_list_index(coordinator_received);
+
             primary_rm.id  = rm_list[id].id;
             primary_rm.socket = rm_list[id].socket;
             strcpy(primary_rm.string_id,rm_list[id].string_id);
             primary_rm.port  = rm_list[id].port;
             rm_list[id].socket = -1;
+
             if(DEBUG) printf("Hello I am not the primary.\n");
          }
          else if(DEBUG) printf("Hello I am the primary bc i didn't receive a coordinator message.\n");
