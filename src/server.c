@@ -40,6 +40,8 @@ void backup_handle_send(packet message, int profile_id);
 void backup_handle_consume(int profile_id, int notif_id);
 void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload,int delay);
 void bully_election();
+void* receive_bully_messages(void *arg);
+
 
 //////////////////////////////////////////
 //Struct used for creating threads
@@ -515,126 +517,6 @@ void primary_send_initial_info(int rm_index){
           
 }
 
-void* receive_bully_messages(void *arg)
-{
-   int* id = (int*)arg;
-   int index = get_rm_list_index(*id);
-   if(DEBUG) printf("Receiving bully messages for backup %i\n", *id);
-   packet message;
-   election_done = 0;   
-   while(1)
-   {
-      if(rm_list[index].socket!=-1)
-      {
-         int received = receive(rm_list[index].socket,&message);
-         if(received)
-         {
-            if(DEBUG) printf("Received a message with type %i\n", message.type);
-            switch(message.type)
-            {
-               case BULLY_COORDINATOR:
-                  coordinator_received = message.userid;
-                  if(DEBUG) printf("Coordinator message received from %i.\n", message.userid);
-                  break;
-
-               case BULLY_ANSWER:
-                  if(DEBUG) printf("Answer message received from %i.\n", message.userid);
-                  answer_cnt++;
-                  send_packet_with_userid(rm_list[index].socket,this_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack");
-                  break;
-
-               case BULLY_ELECTION:
-                  election_received = 1;
-                  if(DEBUG) printf("Sending answer message to %i...\n", rm_list[index].id);
-                  send_packet_with_userid(rm_list[index].socket,this_rm.id,BULLY_ANSWER, ++sqncnt,strlen("answer")+1,getTime(),"answer");
-                  int received = receive(rm_list[index].socket,&message);
-                  if(received && message.type == ACK)
-                     bully_election();
-                  if(DEBUG) printf("Answer message sent.");
-                  break;
-               case ACK:
-               break;
-               default:
-                  printf("Unexpected message\n");
-            }
-            if(message.payload) free(message.payload);
-         }
-         else 
-         {
-            if(DEBUG) printf("No message was received from %i.\n", *id);
-               rm_list[index].socket = -1;
-         }
-      }
-   }
-}
-
-void bully_election()
-{
-   int i = 0;
-   election_started = 1;
-   answer_cnt = 0;
-   coordinator_received = 0;
-   for(i = 0; i<rm_list_size; i++)
-   {
-      if(rm_list[i].id > this_rm.id && rm_list[i].id != this_rm.id)
-      {
-         if(!send_packet_with_userid(rm_list[i].socket,this_rm.socket,BULLY_ELECTION,++sqncnt,strlen("election")+1,getTime(),"election"))
-         {
-            rm_list[i].socket = -1;
-            if(DEBUG) printf("Error on election message to backup %i\n", rm_list[i].id);
-         }
-         else
-            if(DEBUG) printf("Sent an election message to backup %i", rm_list[i].id);
-      }
-      else
-         if(DEBUG) printf("Can't send election message to backup %i\n", rm_list[i].id);
-   }
-
-   sleep(1);
-
-   if(coordinator_received)
-   {
-      //int id = get_rm_list_index(coordinator_received);
-      //primary_rm = rm_list[id];
-      if(DEBUG) printf("Hello I am not the primary.\n");
-   }
-   else
-   {
-      if(!answer_cnt)
-      {
-         //this_rm.is_primary = 1;
-         //primary_rm = this_rm;
-         if(DEBUG) printf("Hello I am the primary.\n");
-         for(i = 0; i < rm_list_size; i++)
-         {
-            if(rm_list[i].socket != -1 && rm_list[i].id != this_rm.id)
-            {
-               if(!send_packet_with_userid(rm_list[i].socket,this_rm.id,BULLY_COORDINATOR, ++sqncnt,strlen("coord")+1,getTime(),"coord"))
-                  rm_list[i].socket = -1;
-               else
-                  if(DEBUG) printf("Sent a coordinator message to %i\n", rm_list[i].id);
-            }               
-         }
-         // TO-DO: Become primary
-      }
-      else
-      {
-         sleep(5);
-         if(coordinator_received)
-         {
-            //int id = get_rm_list_index(coordinator_received);
-            //primary_rm = rm_list[id];
-            if(DEBUG) printf("Hello I am not the primary.\n");
-         }
-         else if(DEBUG) printf("Hello I am the primary bc i didn't receive a coordinator message.\n");
-      }
-         
-   }
-
-   election_done = 1;
-   election_started = 0;
-
-}
 
 int main( int argc, char *argv[] ) {
 
@@ -805,7 +687,7 @@ int main( int argc, char *argv[] ) {
       /////////////////////////////////////
       } else{//BACKUP CODE
          
-         int count = 0;
+
          backup_connect_to_primary();
 
          //create thread that will accept new backups
@@ -828,7 +710,7 @@ int main( int argc, char *argv[] ) {
 
             for(c = 0; c<rm_list_size; c++)
             {  
-               if(!thread_open[rm_list[c].id] && rm_list[c].socket != -1 && !rm_list[c].is_primary)
+               if(!thread_open[rm_list[c].id] && rm_list[c].socket != -1 && !rm_list[c].is_primary )
                {
                   thread_open[rm_list[c].id] = 1;
                   if(DEBUG) printf("Opened a receiving thread for backup %i\n", rm_list[c].id);
@@ -839,7 +721,7 @@ int main( int argc, char *argv[] ) {
             if(!receive(primary_rm.socket, &message))
             {  
                sleep(0.1*this_rm.id*5);
-               if(!election_started && !election_received && !election_done)
+               if(!election_started && !election_received && election_done)
                {
                   if(DEBUG) printf("Starting bully election.\n");
                   bully_election();
@@ -944,6 +826,153 @@ int main( int argc, char *argv[] ) {
 }
 
 /////////////////////////////////////////////
+//BULLY 
+
+
+void* receive_bully_messages(void *arg)
+{
+   int* id = (int*)arg;
+   int index = get_rm_list_index(*id);
+   if(DEBUG) printf("Receiving bully messages for backup %i\n", *id);
+   packet message;
+   election_done = 0;   
+   while(1)
+   {
+      if(rm_list[index].socket!=-1)
+      {
+         int received = receive(rm_list[index].socket,&message);
+         if(received)
+         {
+            if(DEBUG) printf("Received a message with type %i\n", message.type);
+            switch(message.type)
+            {
+               case BULLY_COORDINATOR:
+                  coordinator_received = message.userid;
+                  if(DEBUG) printf("Coordinator message received from %i.\n", message.userid);
+                  break;
+
+               case BULLY_ANSWER:
+                  if(DEBUG) printf("Answer message received from %i.\n", message.userid);
+                  answer_cnt++;
+                  send_packet_with_userid(rm_list[index].socket,this_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack");
+                  break;
+
+               case BULLY_ELECTION:
+                  election_received = 1;
+                  if(DEBUG) printf("Sending answer message to %i...\n", rm_list[index].id);
+                  send_packet_with_userid(rm_list[index].socket,this_rm.id,BULLY_ANSWER, ++sqncnt,strlen("answer")+1,getTime(),"answer");
+                  int received = receive(rm_list[index].socket,&message);
+                  if(received && message.type == ACK)
+                     bully_election();
+                  if(DEBUG) printf("Answer message sent.");
+                  break;
+               case ACK:
+               break;
+               default:
+                  printf("Unexpected message\n");
+            }
+            if(message.payload) free(message.payload);
+         }
+         else 
+         {
+            if(DEBUG) printf("No message was received from %i.\n", *id);
+               rm_list[index].socket = -1;
+         }
+      }
+   }
+}
+
+void bully_election()
+{
+   int i = 0;
+   election_started = 1;
+   answer_cnt = 0;
+   coordinator_received = 0;
+   for(i = 0; i<rm_list_size; i++)
+   {
+      if(rm_list[i].id > this_rm.id && rm_list[i].id != this_rm.id)
+      {
+         if(!send_packet_with_userid(rm_list[i].socket,this_rm.socket,BULLY_ELECTION,++sqncnt,strlen("election")+1,getTime(),"election"))
+         {
+            rm_list[i].socket = -1;
+            if(DEBUG) printf("Error on election message to backup %i\n", rm_list[i].id);
+         }
+         else
+            if(DEBUG) printf("Sent an election message to backup %i", rm_list[i].id);
+      }
+      else
+         if(DEBUG) printf("Can't send election message to backup %i\n", rm_list[i].id);
+   }
+
+   sleep(1);
+
+   if(coordinator_received)
+   {
+      int id = get_rm_list_index(coordinator_received);
+      primary_rm.id  = rm_list[id].id;
+      primary_rm.socket = rm_list[id].socket;
+      strcpy(primary_rm.string_id,rm_list[id].string_id);
+      primary_rm.port  = rm_list[id].port;
+      rm_list[id].socket = -1;
+
+      if(DEBUG) printf("Hello I am not the primary.\n");
+   }
+   else
+   {
+      if(!answer_cnt)
+      {
+
+
+         if(DEBUG) printf("Hello I am the primary.\n");
+         for(i = 0; i < rm_list_size; i++)
+         {
+            if(rm_list[i].socket != -1 && rm_list[i].id != this_rm.id)
+            {
+               if(!send_packet_with_userid(rm_list[i].socket,this_rm.id,BULLY_COORDINATOR, ++sqncnt,strlen("coord")+1,getTime(),"coord"))
+                  rm_list[i].socket = -1;
+               else
+                  if(DEBUG) printf("Sent a coordinator message to %i\n", rm_list[i].id);
+            }               
+         }
+
+         this_rm.is_primary = 1;
+         pthread_cancel(thr_backup_accept_backups);
+        
+         for(int i=0;i<MAX_RMS;i++){
+            if(thread_open[i]){
+               pthread_cancel(thr_bully_receive[i]);
+            }  
+         }
+        
+         // TO-DO: Become primary
+      }
+      else
+      {
+         sleep(1);
+         if(coordinator_received)
+         {
+            //int id = get_rm_list_index(coordinator_received);
+            //primary_rm = rm_list[id];
+
+            int id = get_rm_list_index(coordinator_received);
+            primary_rm.id  = rm_list[id].id;
+            primary_rm.socket = rm_list[id].socket;
+            strcpy(primary_rm.string_id,rm_list[id].string_id);
+            primary_rm.port  = rm_list[id].port;
+            rm_list[id].socket = -1;
+            if(DEBUG) printf("Hello I am not the primary.\n");
+         }
+         else if(DEBUG) printf("Hello I am the primary bc i didn't receive a coordinator message.\n");
+      }
+         
+   }
+
+   election_done = 1;
+   election_started = 0;
+
+}
+
+
 
 
 
