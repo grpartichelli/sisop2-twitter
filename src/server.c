@@ -874,12 +874,6 @@ void update_primary(int coordinator_id)
 {
    int id = get_rm_list_index(coordinator_id);
 
-   if(thread_open[coordinator_id]){
-      printf("Fechei a thread %i\n", coordinator_id);
-      pthread_cancel(thr_bully_receive[coordinator_id]);
-      thread_open[coordinator_id] = -1;
-   }  
-
    primary_rm.id  = rm_list[id].id;
    primary_rm.socket = rm_list[id].socket;
    strcpy(primary_rm.string_id,rm_list[id].string_id);
