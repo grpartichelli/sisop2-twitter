@@ -902,6 +902,24 @@ void close_backup_threads()
    }
 }
 
+void become_primary()
+{
+   int i = 0;
+   for(i = 0; i < rm_list_size; i++)
+   {
+      if(rm_list[i].socket != -1 && rm_list[i].id != this_rm.id)
+      {
+         if(!send_packet_with_userid(rm_list[i].socket,this_rm.id,BULLY_COORDINATOR, ++sqncnt,strlen("coord")+1,getTime(),"coord"))
+            rm_list[i].socket = -1;
+         else
+         {  
+            printf("Sent a coordinator message to %i with my id i.e. %i\n", rm_list[i].id, this_rm.id);
+         }
+      }               
+   }
+   close_backup_threads();  
+}
+
 void bully_election()
 {
    printf("Starting bully election.\n");
@@ -927,19 +945,7 @@ void bully_election()
    if(!answer_cnt)
    {
       printf("I am the new primary.\n");
-      for(i = 0; i < rm_list_size; i++)
-      {
-         if(rm_list[i].socket != -1 && rm_list[i].id != this_rm.id)
-         {
-            if(!send_packet_with_userid(rm_list[i].socket,this_rm.id,BULLY_COORDINATOR, ++sqncnt,strlen("coord")+1,getTime(),"coord"))
-               rm_list[i].socket = -1;
-            else
-            {  
-               printf("Sent a coordinator message to %i with my id i.e. %i\n", rm_list[i].id, this_rm.id);
-            }
-         }               
-      }
-      close_backup_threads();  
+      become_primary();
    }
    else
    {
@@ -948,7 +954,11 @@ void bully_election()
       {
          update_primary(coordinator_received);
       }
-      else printf("I am the new primary.\n");
+      else 
+      {
+         printf("I am the new primary.\n");
+         become_primary();
+      }
    }    
 
    election_started = 0;
