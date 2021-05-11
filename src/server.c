@@ -19,6 +19,7 @@
 #include "rm.c"
 
 #define TIMEOUT 1
+#define HEART_TIME 1
 
 /////////////////////////////////////////
 //ETAPA2
@@ -1007,7 +1008,7 @@ void *send_heartbeat(void *arg)
 
    while(1)
    {
-      sleep(1);
+      sleep(HEART_TIME);
       if(!election_started)
       {
          primary_multicast(-1, HEARTBEAT, ++sqncnt, strlen("I'm alive")+1, getTime(), "I'm alive");
