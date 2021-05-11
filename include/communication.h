@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <poll.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 #define CMD_QUIT 1
 #define CMD_SEND 2

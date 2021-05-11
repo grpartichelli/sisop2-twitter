@@ -18,6 +18,7 @@
 #include "file_handler.c"
 #include "rm.c"
 
+#define TIMEOUT 1
 
 /////////////////////////////////////////
 //ETAPA2
@@ -38,7 +39,7 @@ void backup_send_ack_to_primary();
 void backup_add_follower(int follower, int followed);
 void backup_handle_send(packet message, int profile_id);
 void backup_handle_consume(int profile_id, int notif_id);
-void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload,int delay);
+void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload);
 void bully_election();
 void* receive_bully_messages(void *arg);
 
@@ -64,7 +65,7 @@ pthread_t thr_bully_receive[MAX_RMS];
 pthread_mutex_t send_mutex =  PTHREAD_MUTEX_INITIALIZER; //Making sure sends can't alter notifications at the same time
 pthread_mutex_t follow_mutex = PTHREAD_MUTEX_INITIALIZER;//Making sure follow can't alter followers at the same time
 pthread_mutex_t online_mutex = PTHREAD_MUTEX_INITIALIZER;//Not subtracting or adding a profile online info at the same time
-
+pthread_mutex_t ack_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t socket_update_mutex = PTHREAD_MUTEX_INITIALIZER;//Not subtracting or adding a profile online info at the same time
 //CONSUMER BARRIER
 pthread_barrier_t  barriers[MAX_CLIENTS]; 
@@ -76,7 +77,6 @@ profile profile_list[MAX_CLIENTS];
 int thread_open[MAX_RMS];
 int coordinator_received = 0;
 int answer_cnt = 0;
-int election_done = 1;
 int election_started = 0;
 int election_received = 0;
 
@@ -143,7 +143,7 @@ void handle_follow(char *follow_name, int profile_id, int newsockfd){
    profile_list[follow_id].followers[num_followers] =  &profile_list[profile_id];
 
    //UPDATE THE RMS
-   primary_multicast( follow_id,CMD_FOLLOW, ++sqncnt,strlen(profile_list[profile_id].name)+1,getTime(),profile_list[profile_id].name,0);
+   primary_multicast( follow_id,CMD_FOLLOW, ++sqncnt,strlen(profile_list[profile_id].name)+1,getTime(),profile_list[profile_id].name);
    
 
    //SAVE PROFILES
@@ -205,7 +205,7 @@ void handle_send(notification *notif, packet message, int profile_id, int newsoc
 
 
    //UPDATE THE RMS
-   primary_multicast(profile_id, CMD_SEND, message.sqn, strlen(message.payload)+1,message.timestamp,message.payload,0);
+   primary_multicast(profile_id, CMD_SEND, message.sqn, strlen(message.payload)+1,message.timestamp,message.payload);
    
 
    //SAVE PROFILES
@@ -241,7 +241,6 @@ void *handle_client_messages(void *arg) {
          
       //READ
       receive(newsockfd, &message);
-      //printf("%s",message.payload);
       
       switch(message.type)
       {
@@ -253,7 +252,7 @@ void *handle_client_messages(void *arg) {
             
                //SENDO RMS
                strcpy(payload,profile_list[profile_id].name);
-               primary_multicast(profile_id ,SUB_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload,0);
+               primary_multicast(profile_id ,SUB_ONLINE, ++sqncnt,strlen(payload)+1,getTime(),payload);
                pthread_mutex_unlock(&online_mutex); 
 
             
@@ -264,12 +263,12 @@ void *handle_client_messages(void *arg) {
                pthread_mutex_lock(&socket_update_mutex);
                if(profile_list[profile_id].port1 == port){
                   profile_list[profile_id].port1 = -1;
-                  primary_multicast(profile_id ,REMOVE_PORT1, ++sqncnt,1,getTime(),"",0);
+                  primary_multicast(profile_id ,REMOVE_PORT1, ++sqncnt,1,getTime(),"");
                  
                }
                else{
                   profile_list[profile_id].port2 = -1;
-                  primary_multicast(profile_id ,REMOVE_PORT2, ++sqncnt,1,getTime(),"",0);
+                  primary_multicast(profile_id ,REMOVE_PORT2, ++sqncnt,1,getTime(),"");
                   
                }
                pthread_mutex_unlock(&socket_update_mutex);  
@@ -314,12 +313,12 @@ void *handle_client_messages(void *arg) {
             
             if(profile_list[profile_id].port1 == -1){
                profile_list[profile_id].port1 = port;
-               primary_multicast(profile_id ,UPDATE_PORT1, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload,0);
+               primary_multicast(profile_id ,UPDATE_PORT1, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload);
             }
             
             else{
                profile_list[profile_id].port2 = port;
-               primary_multicast(profile_id ,UPDATE_PORT2, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload,0);
+               primary_multicast(profile_id ,UPDATE_PORT2, ++sqncnt,strlen(message.payload)+1,getTime(),message.payload);
            
             }
 
@@ -332,7 +331,6 @@ void *handle_client_messages(void *arg) {
       
       
       if(message.payload){
-         printf("I WILL FREE THIS: %s \n",message.payload);
          free(message.payload);
       } 
    }
@@ -397,7 +395,7 @@ void *handle_client_consumes(void *arg) {
                   //SEND THE CHANGE TO THE RMS
                   char str_i[10];
                   sprintf(str_i, "%d", i);
-                  primary_multicast(profile_id ,NOTIF_CONSUMED, ++sqncnt,strlen(str_i)+1,getTime(),str_i,0);
+                  primary_multicast(profile_id ,NOTIF_CONSUMED, ++sqncnt,strlen(str_i)+1,getTime(),str_i);
 
                }
             }
@@ -431,15 +429,11 @@ void primary_receive_ack(int rm_id){
    if(!receive(rm_list[rm_id].socket,&message))
    {  
       rm_list[rm_id].socket = -1;
-      if(DEBUG)
-         printf("A backup died.\n");  
    }
    else
 
    {  
       if(message.type != ACK){
-         printf("Didnt receive ACK, got: %d\n", message.type);
-
          exit(1);
       }
        if(message.payload){
@@ -450,9 +444,9 @@ void primary_receive_ack(int rm_id){
 }
 
 //send a packet to every socket connect to the primary
-void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload,int delay){
+void primary_multicast(int userid,int type, int sqn, int len, int timestamp, char* payload){
 
- 
+   pthread_mutex_lock(&ack_mutex);
   
    for(int i=0;i<rm_list_size;i++){
       if(rm_list[i].socket != -1){
@@ -462,11 +456,9 @@ void primary_multicast(int userid,int type, int sqn, int len, int timestamp, cha
          else{
             rm_list[i].socket = -1;
          }
-         sleep(delay);
       }
    }
-  
-
+   pthread_mutex_unlock(&ack_mutex);
 }
 
 //sends the initial info needed for a backup to be synchronized
@@ -690,7 +682,7 @@ int main( int argc, char *argv[] ) {
                   rm_list[rm_list_index].socket = newsockfd;
                   //warn all the other backups this one connected
                   
-                  primary_multicast(-1,INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id,0);
+                  primary_multicast(-1,INIT_BACKUP,++sqncnt,strlen(rm_list[rm_list_index].string_id)+1,getTime(),rm_list[rm_list_index].string_id);
                   
                   
                   //send all initial info to this backup
@@ -713,14 +705,10 @@ int main( int argc, char *argv[] ) {
          int follower,followed;    
 
          int c;
-         if(DEBUG) printf("Hello my socket is %i\n", this_rm.socket);
          for(c = 0; c<MAX_RMS; c++)
          {
             thread_open[c] = 0;
          }
-
-         
-
 
          while(!this_rm.is_primary){
 
@@ -730,23 +718,17 @@ int main( int argc, char *argv[] ) {
                if(!thread_open[rm_list[c].id] && rm_list[c].socket != -1 && !rm_list[c].is_primary )
                {
                   thread_open[rm_list[c].id] = 1;
-                  if(DEBUG) printf("Opened a receiving thread for backup %i\n", rm_list[c].id);
                   print_error(pthread_create(&thr_bully_receive[rm_list[c].id], NULL, receive_bully_messages, (void*)((long int)&rm_list[c].id)),"Failed to create receive bully messages thread.");
                }
             }
 
             if(!receive(primary_rm.socket, &message))
             {  
-               sleep(0.1*this_rm.id*5);
                if(!election_started && !election_received)
                {
-                  if(DEBUG) printf("Starting bully election.\n");
                   bully_election();
                }
             }else{
-
-           // if(message.userid!=(uint16_t)-1 && message.payload)
-               //printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
             
                switch(message.type){
                   case INIT_BACKUP:
@@ -789,23 +771,18 @@ int main( int argc, char *argv[] ) {
                   
                   case REMOVE_PORT1:
                      profile_list[message.userid].port1 = -1;
-                     //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
                   break;
                   
                   case REMOVE_PORT2:
-                     profile_list[message.userid].port2 = -1;
-                     //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );           
+                     profile_list[message.userid].port2 = -1;        
                   break;
                   
                   case UPDATE_PORT1:
-                     profile_list[message.userid].port1 = atoi(message.payload);
-                    //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
-                     
+                     profile_list[message.userid].port1 = atoi(message.payload);      
                   break;
                   
                   case UPDATE_PORT2:
                      profile_list[message.userid].port2 = atoi(message.payload);
-                     //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );
                   break;
                   
                   case HEARTBEAT:
@@ -844,9 +821,7 @@ void* receive_bully_messages(void *arg)
 {
    int* id = (int*)arg;
    int index = get_rm_list_index(*id);
-   if(DEBUG) printf("Receiving bully messages for backup %i\n", *id);
    packet message;
-   election_done = 0;   
    while(1)
    {
       if(rm_list[index].socket!=-1)
@@ -854,7 +829,6 @@ void* receive_bully_messages(void *arg)
          int received = receive(rm_list[index].socket,&message);
          if(received)
          {
-            if(DEBUG) printf("Received a message with type %i\n", message.type);
             switch(message.type)
             {
                case BULLY_COORDINATOR:
@@ -862,32 +836,30 @@ void* receive_bully_messages(void *arg)
                   int id = get_rm_list_index(coordinator_received);
                   for(int i=0;i<MAX_RMS;i++){
                         if(thread_open[i] && rm_list[i].id == id){
-                           printf("I DELETED THIS THREAD!\n");
                            pthread_cancel(thr_bully_receive[i]);
                         }  
                   }
-                  if(DEBUG) printf("Coordinator message received from %i.\n", message.userid);
                   break;
 
                case BULLY_ANSWER:
-                  if(DEBUG) printf("Answer message received from %i.\n", message.userid);
                   answer_cnt++;
-                  send_packet_with_userid(rm_list[index].socket,this_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack");
                   break;
 
                case BULLY_ELECTION:
                   election_received = 1;
-                  if(DEBUG) printf("Sending answer message to %i...\n", rm_list[index].id);
                   send_packet_with_userid(rm_list[index].socket,this_rm.id,BULLY_ANSWER, ++sqncnt,strlen("answer")+1,getTime(),"answer");
                   int received = receive(rm_list[index].socket,&message);
                   if(received && message.type == ACK)
                      bully_election();
-                  if(DEBUG) printf("Answer message sent.");
-                  break;
-               case ACK:
+                  printf("Answer message sent to backup %i.\n", message.userid);
                break;
+
+               case HEARTBEAT:
+                  send_packet(rm_list[get_rm_list_index(coordinator_received)].socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack")   ;
+               break;
+
                default:
-                  printf("Uuuuuuuunexpected message\n");
+               break;
             }
             if(message.payload){
                free(message.payload);
@@ -895,15 +867,45 @@ void* receive_bully_messages(void *arg)
          }
          else 
          {
-            if(DEBUG) printf("No message was received from %i.\n", *id);
-               rm_list[index].socket = -1;
+            printf("No message was received from backup %i.\n", *id);
+            rm_list[index].socket = -1;
          }
       }
    }
 }
 
+void update_primary(int coordinator_id)
+{
+   int id = get_rm_list_index(coordinator_id);
+
+   if(thread_open[id]){
+      pthread_cancel(thr_bully_receive[id]);
+   }  
+
+   primary_rm.id  = rm_list[id].id;
+   primary_rm.socket = rm_list[id].socket;
+   strcpy(primary_rm.string_id,rm_list[id].string_id);
+   primary_rm.port  = rm_list[id].port;
+   rm_list[id].socket = -1;
+
+   printf("The new primary is %i.\n", coordinator_id);
+}
+
+void close_backup_threads()
+{
+   this_rm.is_primary = 1;
+   pthread_cancel(thr_backup_accept_backups);
+   
+   for(int i=0;i<MAX_RMS;i++){
+      if(thread_open[i]){
+         pthread_cancel(thr_bully_receive[i]);
+      }  
+   }
+}
+
 void bully_election()
 {
+   printf("Starting bully election.\n");
    int i = 0;
    election_started = 1;
    answer_cnt = 0;
@@ -915,81 +917,43 @@ void bully_election()
          if(!send_packet_with_userid(rm_list[i].socket,this_rm.socket,BULLY_ELECTION,++sqncnt,strlen("election")+1,getTime(),"election"))
          {
             rm_list[i].socket = -1;
-            if(DEBUG) printf("Error on election message to backup %i\n", rm_list[i].id);
          }
          else
-            if(DEBUG) printf("Sent an election message to backup %i", rm_list[i].id);
+            printf("Sent an election message to backup %i.\n", rm_list[i].id);
       }
-      else
-         if(DEBUG) printf("Can't send election message to backup %i\n", rm_list[i].id);
    }
 
-   sleep(1);
+   sleep(TIMEOUT);
 
-   if(coordinator_received)
+   if(!answer_cnt)
    {
-      int id = get_rm_list_index(coordinator_received);
-
-      primary_rm.id  = rm_list[id].id;
-      primary_rm.socket = rm_list[id].socket;
-      strcpy(primary_rm.string_id,rm_list[id].string_id);
-      primary_rm.port  = rm_list[id].port;
-      rm_list[id].socket = -1;
-
-      if(DEBUG) printf("Hello I am not the primary.\n");
+      printf("I am the new primary.\n");
+      for(i = 0; i < rm_list_size; i++)
+      {
+         if(rm_list[i].socket != -1 && rm_list[i].id != this_rm.id)
+         {
+            if(!send_packet_with_userid(rm_list[i].socket,this_rm.id,BULLY_COORDINATOR, ++sqncnt,strlen("coord")+1,getTime(),"coord"))
+               rm_list[i].socket = -1;
+            else
+            {  
+               printf("Sent a coordinator message to %i\n", rm_list[i].id);
+            }
+         }               
+      }
+      close_backup_threads();  
    }
    else
    {
-      if(!answer_cnt)
+      sleep(TIMEOUT*2);
+      if(coordinator_received)
       {
-
-
-         if(DEBUG) printf("Hello I am the primary.\n");
-         for(i = 0; i < rm_list_size; i++)
-         {
-            if(rm_list[i].socket != -1 && rm_list[i].id != this_rm.id)
-            {
-               if(!send_packet_with_userid(rm_list[i].socket,this_rm.id,BULLY_COORDINATOR, ++sqncnt,strlen("coord")+1,getTime(),"coord"))
-                  rm_list[i].socket = -1;
-               else
-                  if(DEBUG) printf("Sent a coordinator message to %i\n", rm_list[i].id);
-            }               
-         }
-
-         this_rm.is_primary = 1;
-         pthread_cancel(thr_backup_accept_backups);
-        
-         for(int i=0;i<MAX_RMS;i++){
-            if(thread_open[i]){
-               printf("I DELETED THIS THREAD!\n");
-               pthread_cancel(thr_bully_receive[i]);
-            }  
-         }
-        
-         // TO-DO: Become primary
+         update_primary(coordinator_received);
       }
-      else
-      {
-         sleep(5);
-         if(coordinator_received)
-         {
-            int id = get_rm_list_index(coordinator_received);
+      else printf("I am the new primary.\n");
+   }    
 
-            primary_rm.id  = rm_list[id].id;
-            primary_rm.socket = rm_list[id].socket;
-            strcpy(primary_rm.string_id,rm_list[id].string_id);
-            primary_rm.port  = rm_list[id].port;
-            rm_list[id].socket = -1;
-
-            if(DEBUG) printf("Hello I am not the primary.\n");
-         }
-         else if(DEBUG) printf("Hello I am the primary bc i didn't receive a coordinator message.\n");
-      }
-         
-   }
-
-   election_done = 1;
    election_started = 0;
+   election_received = 0;
 
 }
 
@@ -1012,7 +976,6 @@ void backup_send_ack_to_primary(){
    if(!send_packet(primary_rm.socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack"))
    {
       primary_rm.socket = -1;
-      // TO-DO: Chamar eleição
    }
 }
 
@@ -1045,7 +1008,11 @@ void *send_heartbeat(void *arg)
    while(1)
    {
       sleep(1);
-      primary_multicast(-1, HEARTBEAT, ++sqncnt, strlen("I'm alive")+1, getTime(), "I'm alive",2);
+      if(!election_started)
+      {
+         primary_multicast(-1, HEARTBEAT, ++sqncnt, strlen("I'm alive")+1, getTime(), "I'm alive");
+         printf("Sending heartbeat!\n");
+      }
    }
 }
 
@@ -1054,16 +1021,12 @@ void *backup_accept_new_backups(void *arg){
    packet message;
 
    while(1){
-      if(DEBUG) printf("Accepting other backups...\n");
       int tempsockfd = accept(this_rm.socket, (struct sockaddr *)&cli_addr, &clilen);
-      if(DEBUG) printf("Backup accepted. Waiting for init message...\n");
       print_error((tempsockfd < 0),"");
 
       //Receive message
       if(receive(tempsockfd, &message))
       {
-         if(DEBUG) printf("Init message received for backup with socket %s.\n", message.payload);
-
          int rm_list_index = get_rm_list_index(atoi(message.payload)); 
          if(message.payload){
             free(message.payload);  
@@ -1159,20 +1122,17 @@ void backup_connect_to_backup(int id){
    //GET FRONTEND_PRIMARY SOCKET
    rm_list[rm_list_index].socket = socket(AF_INET, SOCK_STREAM, 0);
    if(rm_list[rm_list_index].socket == -1 && DEBUG) printf("ERROR opening socket\n");
-   //print_error(((rm_list[rm_list_index].socket = socket(AF_INET, SOCK_STREAM, 0)) == -1), "ERROR opening socket\n"); 
+
    //CONNECT TO FRONTEND_PRIMARY SOCKET
    serv_addr.sin_family = AF_INET;     
    serv_addr.sin_port = htons(rm_list[rm_list_index].port);    
    serv_addr.sin_addr = *((struct in_addr *)server->h_addr);
    bzero(&(serv_addr.sin_zero), 8);     
    
-   if(DEBUG) printf("Connecting to backup %i...\n", id);
 
    print_error((connect(rm_list[rm_list_index].socket,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) , "ERROR connecting\n"); 
-   if(DEBUG) printf("Connected to backup %i. Sending init message...\n", id);
    if(!send_packet(rm_list[rm_list_index].socket, INIT_BACKUP, ++sqncnt,strlen(this_rm.string_id)+1 , getTime(), this_rm.string_id))
       rm_list[rm_list_index].socket = -1;
-   if(DEBUG) printf("Init message sent to backup %i.\n", id);
    
 }
 //connect to the primary server socket
