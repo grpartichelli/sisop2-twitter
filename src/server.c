@@ -907,7 +907,7 @@ void become_primary()
             rm_list[i].socket = -1;
          else
          {  
-            printf("Sent a coordinator message to %i with my id i.e. %i\n", rm_list[i].id, this_rm.id);
+            printf("Sent a coordinator message to %i\n", rm_list[i].id, this_rm.id);
          }
       }               
    }
