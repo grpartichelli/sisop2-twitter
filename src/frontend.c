@@ -129,8 +129,8 @@ void *receive_new_primary(void *arg){
 
         pthread_create(&thr_client_to_primary_server, NULL, client_to_primary_server,NULL);
    		pthread_create(&thr_primary_server_to_client, NULL, primary_server_to_client,NULL);
-   		pthread_join(thr_client_to_primary_server,NULL);
-    	pthread_join(thr_primary_server_to_client, NULL);
+   		//pthread_join(thr_client_to_primary_server,NULL);
+    	//pthread_join(thr_primary_server_to_client, NULL);
    	};
 }
 

@@ -235,13 +235,14 @@ void *handle_client_messages(void *arg) {
    notification *notif ;
    
  
-  
+   
    signal(SIGINT, intHandler); //detect ctrl+c
    while(par->flag){
          
       //READ
       receive(newsockfd, &message);
-      printf("%s",message.payload);
+      //printf("%s",message.payload);
+      
       switch(message.type)
       {
          case CMD_QUIT:   
@@ -329,7 +330,11 @@ void *handle_client_messages(void *arg) {
          
       }
       
-      if(message.payload) free(message.payload);
+      
+      if(message.payload){
+         printf("I WILL FREE THIS: %s \n",message.payload);
+         free(message.payload);
+      } 
    }
 
 }
@@ -364,7 +369,9 @@ void *handle_client_consumes(void *arg) {
 
             //Send the notification
             send_packet(newsockfd,NOTIF,++sqncnt,strlen(str_notif), n->timestamp, str_notif);
-            if(str_notif) free(str_notif);
+            if(str_notif){
+               free(str_notif);
+            } 
              
             //BARRIER FOR CONCURRENT CLIENTS
             pthread_barrier_wait (&barriers[profile_id]);
@@ -432,9 +439,12 @@ void primary_receive_ack(int rm_id){
    {  
       if(message.type != ACK){
          printf("Didnt receive ACK, got: %d\n", message.type);
+
          exit(1);
       }
-       if(message.payload) free(message.payload);
+       if(message.payload){
+         free(message.payload);
+       } 
 
    }      
 }
@@ -643,7 +653,10 @@ int main( int argc, char *argv[] ) {
                case INIT_USER:
                    //Create or update profile
                    profile_id = handle_profile(profile_list, message.payload,newsockfd, ++sqncnt,online_mutex);
-                   free(message.payload);
+                   
+                   if(message.payload){
+                     free(message.payload);
+                   }
 
                    //SAVE PROFILES
                    save_profiles(profile_list,this_rm.id);
@@ -668,7 +681,11 @@ int main( int argc, char *argv[] ) {
 
                case INIT_BACKUP:
                   rm_list_index = get_rm_list_index(atoi(message.payload)); 
-                  free(message.payload);  
+
+                  if(message.payload){
+                     free(message.payload); 
+                  }
+                
                   
                   rm_list[rm_list_index].socket = newsockfd;
                   //warn all the other backups this one connected
@@ -731,87 +748,81 @@ int main( int argc, char *argv[] ) {
            // if(message.userid!=(uint16_t)-1 && message.payload)
                //printf("UserID: %d Message: %s -- Command: %d\n",message.userid==65535? -1 : message.userid,message.payload,message.type);
             
-            switch(message.type){
-               case INIT_BACKUP:
-                  //Start connection with this backup
-                  if(atoi(message.payload) != this_rm.id){
-                     backup_connect_to_backup(atoi(message.payload));    
-                  }
+               switch(message.type){
+                  case INIT_BACKUP:
+                     //Start connection with this backup
+                     if(atoi(message.payload) != this_rm.id){
+                        backup_connect_to_backup(atoi(message.payload));    
+                     }
+                     
+                  break;
+                  case CREATE_USER:  
+                     backup_create_user(message, message.userid);
+                     printf("%s has been created.\n",message.payload);
+                     
+                  break;
+
+                  case CMD_FOLLOW:
+                     follower = get_profile_id(profile_list,message.payload );
+                     backup_add_follower(follower ,message.userid);
+                     printf("%s is now following %s.\n",message.payload,profile_list[message.userid].name);
+                  break; 
+                  case CMD_SEND:
+                     backup_handle_send(message, message.userid);
+                     printf("%s has sent the message: %s\n",profile_list[message.userid].name, message.payload);
+                  break;
+
+                  case NOTIF_CONSUMED:
+                     backup_handle_consume(message.userid,atoi(message.payload));
+                     printf("A notification was consumed by %s.\n",profile_list[message.userid].name);
+                  break;
+
+                  case ADD_ONLINE:
+                     profile_list[message.userid].online++;
+                     printf("Added 1 to %s online counter.\n",profile_list[message.userid].name);
+                  break;
+
+                  case SUB_ONLINE:
+                     profile_list[message.userid].online--;
+                     printf("Subtracted 1 from %s online counter.\n",profile_list[message.userid].name);
+                  break;
                   
-               break;
-               case CREATE_USER:  
-                  backup_create_user(message, message.userid);
-                  printf("%s has been created.\n",message.payload);
+                  case REMOVE_PORT1:
+                     profile_list[message.userid].port1 = -1;
+                     //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
+                  break;
                   
-               break;
-
-               case CMD_FOLLOW:
-                  follower = get_profile_id(profile_list,message.payload );
-                  backup_add_follower(follower ,message.userid);
-                  printf("%s is now following %s.\n",message.payload,profile_list[message.userid].name);
-               break; 
-               case CMD_SEND:
-                  backup_handle_send(message, message.userid);
-                  printf("%s has sent the message: %s\n",profile_list[message.userid].name, message.payload);
-               break;
-
-               case NOTIF_CONSUMED:
-                  backup_handle_consume(message.userid,atoi(message.payload));
-                  printf("A notification was consumed by %s.\n",profile_list[message.userid].name);
-               break;
-
-               case ADD_ONLINE:
-                  profile_list[message.userid].online++;
-                  printf("Added 1 to %s online counter.\n",profile_list[message.userid].name);
-               break;
-
-               case SUB_ONLINE:
-                  profile_list[message.userid].online--;
-                  printf("Subtracted 1 from %s online counter.\n",profile_list[message.userid].name);
-               break;
-               
-               case REMOVE_PORT1:
-                  profile_list[message.userid].port1 = -1;
-                  //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
-               break;
-               
-               case REMOVE_PORT2:
-                  profile_list[message.userid].port2 = -1;
-                  //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );           
-               break;
-               
-               case UPDATE_PORT1:
-                  profile_list[message.userid].port1 = atoi(message.payload);
-                 //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
+                  case REMOVE_PORT2:
+                     profile_list[message.userid].port2 = -1;
+                     //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );           
+                  break;
                   
-               break;
+                  case UPDATE_PORT1:
+                     profile_list[message.userid].port1 = atoi(message.payload);
+                    //printf("Port1 changed to: %d\n", profile_list[message.userid].port1 );
+                     
+                  break;
+                  
+                  case UPDATE_PORT2:
+                     profile_list[message.userid].port2 = atoi(message.payload);
+                     //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );
+                  break;
+                  
+                  case HEARTBEAT:
+                  break;
+
+                }
+
+                backup_send_ack_to_primary();
                
-               case UPDATE_PORT2:
-                  profile_list[message.userid].port2 = atoi(message.payload);
-                  //printf("Port2 changed to: %d\n", profile_list[message.userid].port2 );
-               break;
-               
-               case HEARTBEAT:
-               break;
 
-             }
-
-            
-             
-
-            backup_send_ack_to_primary();
-            
-
-            save_profiles(profile_list,this_rm.id);
-            if(message.payload) free(message.payload);
-            }
-
-            
+               save_profiles(profile_list,this_rm.id);
+               if(message.payload){
+                  free(message.payload);
+               } 
+            }  
          }
-         
-
-      }
-      
+      }   
    }
 	
    for(i = 0; i<MAX_CLIENTS; i++)
@@ -878,7 +889,9 @@ void* receive_bully_messages(void *arg)
                default:
                   printf("Uuuuuuuunexpected message\n");
             }
-            if(message.payload) free(message.payload);
+            if(message.payload){
+               free(message.payload);
+            } 
          }
          else 
          {
@@ -1032,7 +1045,7 @@ void *send_heartbeat(void *arg)
    while(1)
    {
       sleep(1);
-      primary_multicast(-1, HEARTBEAT, ++sqncnt, strlen("Are you alive?")+1, getTime(), "Are you alive?",2);
+      primary_multicast(-1, HEARTBEAT, ++sqncnt, strlen("I'm alive")+1, getTime(), "I'm alive",2);
    }
 }
 
@@ -1052,7 +1065,9 @@ void *backup_accept_new_backups(void *arg){
          if(DEBUG) printf("Init message received for backup with socket %s.\n", message.payload);
 
          int rm_list_index = get_rm_list_index(atoi(message.payload)); 
-         if(message.payload) free(message.payload);  
+         if(message.payload){
+            free(message.payload);  
+         } 
          rm_list[rm_list_index].socket = tempsockfd;
       }
 
