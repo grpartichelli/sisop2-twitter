@@ -854,10 +854,6 @@ void* receive_bully_messages(void *arg)
                   election_received = 1;
                break;
 
-               case HEARTBEAT:
-                  send_packet(rm_list[get_rm_list_index(coordinator_received)].socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack");
-               break;
-
                default:
                break;
             }
