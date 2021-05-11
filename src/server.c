@@ -823,7 +823,8 @@ void* receive_bully_messages(void *arg)
    int* id = (int*)arg;
    int index = get_rm_list_index(*id);
    packet message;
-   while(1)
+   int loop = 1;
+   while(loop)
    {
       if(rm_list[index].socket!=-1)
       {
@@ -834,12 +835,11 @@ void* receive_bully_messages(void *arg)
             {
                case BULLY_COORDINATOR:
                   coordinator_received = message.userid;
-                  int id = get_rm_list_index(coordinator_received);
-                  for(int i=0;i<MAX_RMS;i++){
-                        if(thread_open[i] && rm_list[i].id == id){
-                           pthread_cancel(thr_bully_receive[i]);
-                        }  
-                  }
+                  if(thread_open[coordinator_received]){
+                     pthread_cancel(thr_bully_receive[coordinator_received]);
+                     thread_open[coordinator_received] = -1;
+                  }  
+                  loop = 0;
                   break;
 
                case BULLY_ANSWER:
@@ -847,16 +847,15 @@ void* receive_bully_messages(void *arg)
                   break;
 
                case BULLY_ELECTION:
-                  election_received = 1;
                   send_packet_with_userid(rm_list[index].socket,this_rm.id,BULLY_ANSWER, ++sqncnt,strlen("answer")+1,getTime(),"answer");
-                  int received = receive(rm_list[index].socket,&message);
-                  if(received && message.type == ACK)
+                  if(!election_started && !election_received)
                      bully_election();
                   printf("Answer message sent to backup %i.\n", message.userid);
+                  election_received = 1;
                break;
 
                case HEARTBEAT:
-                  send_packet(rm_list[get_rm_list_index(coordinator_received)].socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack")   ;
+                  send_packet(rm_list[get_rm_list_index(coordinator_received)].socket,ACK, ++sqncnt,strlen("ack")+1,getTime(),"ack");
                break;
 
                default:
@@ -879,8 +878,10 @@ void update_primary(int coordinator_id)
 {
    int id = get_rm_list_index(coordinator_id);
 
-   if(thread_open[id]){
-      pthread_cancel(thr_bully_receive[id]);
+   if(thread_open[coordinator_id]){
+      printf("Fechei a thread %i\n", coordinator_id);
+      pthread_cancel(thr_bully_receive[coordinator_id]);
+      thread_open[coordinator_id] = -1;
    }  
 
    primary_rm.id  = rm_list[id].id;
@@ -898,8 +899,9 @@ void close_backup_threads()
    pthread_cancel(thr_backup_accept_backups);
    
    for(int i=0;i<MAX_RMS;i++){
-      if(thread_open[i]){
+      if(thread_open[i] && thread_open[i]!=-1){
          pthread_cancel(thr_bully_receive[i]);
+         thread_open[i] = -1;
       }  
    }
 }
@@ -915,7 +917,7 @@ void bully_election()
    {
       if(rm_list[i].id > this_rm.id && rm_list[i].id != this_rm.id)
       {
-         if(!send_packet_with_userid(rm_list[i].socket,this_rm.socket,BULLY_ELECTION,++sqncnt,strlen("election")+1,getTime(),"election"))
+         if(!send_packet_with_userid(rm_list[i].socket,this_rm.id,BULLY_ELECTION,++sqncnt,strlen("election")+1,getTime(),"election"))
          {
             rm_list[i].socket = -1;
          }
@@ -937,7 +939,7 @@ void bully_election()
                rm_list[i].socket = -1;
             else
             {  
-               printf("Sent a coordinator message to %i\n", rm_list[i].id);
+               printf("Sent a coordinator message to %i with my id i.e. %i\n", rm_list[i].id, this_rm.id);
             }
          }               
       }
@@ -945,7 +947,7 @@ void bully_election()
    }
    else
    {
-      sleep(TIMEOUT*2);
+      sleep(TIMEOUT);
       if(coordinator_received)
       {
          update_primary(coordinator_received);
@@ -955,6 +957,7 @@ void bully_election()
 
    election_started = 0;
    election_received = 0;
+   coordinator_received = 0;
 
 }
 
